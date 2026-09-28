@@ -13,6 +13,7 @@ import '../../../authentication/presentation/providers/auth_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../categories/presentation/widgets/categories_modal.dart';
 import '../../../transactions/data/models/transaction_model.dart';
+import '../../../transactions/presentation/providers/financial_refresh.dart';
 import '../../../transactions/presentation/providers/transactions_notifier.dart';
 import '../../../transactions/presentation/widgets/transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_detail_modal.dart';
@@ -119,8 +120,8 @@ class DashboardPage extends ConsumerWidget {
               );
 
               if (confirmed == true && context.mounted) {
-                final success = await ref.read(authNotifierProvider.notifier).signOut();
-                if (success && context.mounted) {
+                final failure = await ref.read(authNotifierProvider.notifier).signOut();
+                if (failure == null && context.mounted) {
                   context.showSuccessSnackBar('Logged out successfully');
                 }
               }
@@ -134,9 +135,9 @@ class DashboardPage extends ConsumerWidget {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                ref.invalidate(currentMonthStatsProvider);
-                ref.invalidate(totalBalanceProvider);
-                ref.invalidate(accountFinancialsProvider);
+                // Reloads account balances too (totalBalance and the account
+                // chart are derived from the accounts list).
+                refreshFinancialData(ref.invalidate);
               },
               child: CustomScrollView(
                 slivers: [
@@ -539,12 +540,11 @@ class DashboardPage extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      final success = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
-      if (success && context.mounted) {
-        ref.invalidate(currentMonthStatsProvider);
-        ref.invalidate(totalBalanceProvider);
-        ref.invalidate(recentTransactionsProvider);
+      final failure = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
+      if (failure == null && context.mounted) {
         context.showSuccessSnackBar('Transaction deleted successfully');
+      } else if (failure != null && context.mounted) {
+        context.showErrorSnackBar(failure.message);
       }
     }
   }

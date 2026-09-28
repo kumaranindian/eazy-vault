@@ -107,7 +107,7 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
       createdBy: user.uid,
     );
 
-    final success = _existingAccount == null
+    final failure = _existingAccount == null
         ? await ref.read(accountsNotifierProvider.notifier).createAccount(account)
         : await ref.read(accountsNotifierProvider.notifier).updateAccount(account);
 
@@ -115,7 +115,7 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (failure == null) {
       context.showSuccessSnackBar(
         _existingAccount == null
             ? 'Account created successfully'
@@ -137,10 +137,7 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
         context.pop();
       }
     } else {
-      final accountsState = ref.read(accountsNotifierProvider);
-      accountsState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 

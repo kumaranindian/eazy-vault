@@ -42,6 +42,8 @@ extension UserModelExtension on UserModel {
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'emailVerified': emailVerified,
+      // Required by firestore.rules on create; must equal the owner's uid.
+      'createdBy': id,
     };
   }
 }

@@ -297,12 +297,15 @@ class SpendingTrendsChart extends ConsumerWidget {
   }
 
   String _formatCompactCurrency(double value) {
-    if (value >= 100000) {
-      return '₹${(value / 100000).toStringAsFixed(1)}L';
-    } else if (value >= 1000) {
-      return '₹${(value / 1000).toStringAsFixed(1)}K';
+    // Net values can be negative; compact the magnitude and keep the sign.
+    final sign = value < 0 ? '-' : '';
+    final abs = value.abs();
+    if (abs >= 100000) {
+      return '$sign₹${(abs / 100000).toStringAsFixed(1)}L';
+    } else if (abs >= 1000) {
+      return '$sign₹${(abs / 1000).toStringAsFixed(1)}K';
     }
-    return '₹${value.toStringAsFixed(0)}';
+    return '$sign₹${abs.toStringAsFixed(0)}';
   }
 }
 

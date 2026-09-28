@@ -269,12 +269,18 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         emailVerified: user.emailVerified,
       );
 
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .set(userModel.toFirestore());
-
-      LoggerService.info('User document created: ${user.uid}');
+      try {
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set(userModel.toFirestore());
+        LoggerService.info('User document created: ${user.uid}');
+      } catch (e, stackTrace) {
+        // The Firebase Auth account already exists and is signed in; the
+        // profile document is not required for the app to work, so don't fail
+        // sign-up/sign-in because of it. It is retried on the next sign-in.
+        LoggerService.error('Create user document error', error: e, stackTrace: stackTrace);
+      }
 
       return userModel;
     } catch (e, stackTrace) {

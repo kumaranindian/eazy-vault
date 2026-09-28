@@ -4,6 +4,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/data/models/account_model.dart';
+import '../../../accounts/presentation/widgets/recalculate_balances_action.dart';
 import '../../data/models/account_financials.dart';
 import 'account_breakdown_chart.dart';
 
@@ -73,6 +74,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                               color: theme.colorScheme.onSurface.withOpacity(0.5),
                             ),
                           ),
+                          const SizedBox(width: 4),
+                          // Rebuilds stored balances from transactions.
+                          const SyncBalancesButton(),
                         ],
                       ),
                       SizedBox(height: isMobile ? 8 : 12),

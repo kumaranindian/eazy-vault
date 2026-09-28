@@ -47,67 +47,53 @@ class AccountsNotifier extends _$AccountsNotifier {
     }
   }
 
-  Future<bool> createAccount(AccountModel account) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      state = const AccountsState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
-    }
-
-    final repository = ref.read(accountsRepositoryProvider);
-    final result = await repository.createAccount(user.uid, account);
-
-    if (result.failure != null) {
-      state = AccountsState.error(result.failure!);
-      return false;
-    }
-
-    await _loadAccounts();
-    return true;
+  Future<Failure?> createAccount(AccountModel account) {
+    return _mutate((userId) async {
+      final result = await ref
+          .read(accountsRepositoryProvider)
+          .createAccount(userId, account);
+      return result.failure;
+    });
   }
 
-  Future<bool> updateAccount(AccountModel account) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      state = const AccountsState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
-    }
-
-    final repository = ref.read(accountsRepositoryProvider);
-    final result = await repository.updateAccount(user.uid, account);
-
-    if (result.failure != null) {
-      state = AccountsState.error(result.failure!);
-      return false;
-    }
-
-    await _loadAccounts();
-    return true;
+  Future<Failure?> updateAccount(AccountModel account) {
+    return _mutate((userId) async {
+      final result = await ref
+          .read(accountsRepositoryProvider)
+          .updateAccount(userId, account);
+      return result.failure;
+    });
   }
 
-  Future<bool> deleteAccount(String accountId) async {
+  Future<Failure?> deleteAccount(String accountId) {
+    return _mutate((userId) async {
+      return ref
+          .read(accountsRepositoryProvider)
+          .deleteAccount(userId, accountId);
+    });
+  }
+
+  /// Runs a write and reloads the list on success. Returns `null` on success,
+  /// otherwise the [Failure]; the list state is left untouched on failure.
+  Future<Failure?> _mutate(
+    Future<Failure?> Function(String userId) operation,
+  ) async {
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      state = const AccountsState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
+      return const Failure.authenticationError('User not authenticated');
     }
 
-    final repository = ref.read(accountsRepositoryProvider);
-    final failure = await repository.deleteAccount(user.uid, accountId);
+    final link = ref.keepAlive();
+    try {
+      final failure = await operation(user.uid);
+      if (failure != null) return failure;
+      ref.invalidate(accountProvider);
 
-    if (failure != null) {
-      state = AccountsState.error(failure);
-      return false;
+      await _loadAccounts();
+      return null;
+    } finally {
+      link.close();
     }
-
-    await _loadAccounts();
-    return true;
   }
 
   void refresh() {

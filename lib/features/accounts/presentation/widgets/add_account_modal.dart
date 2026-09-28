@@ -77,13 +77,13 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
       createdBy: user.uid,
     );
 
-    final success = await ref.read(accountsNotifierProvider.notifier).createAccount(account);
+    final failure = await ref.read(accountsNotifierProvider.notifier).createAccount(account);
 
     if (!mounted) return;
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (failure == null) {
       context.showSuccessSnackBar('Account created successfully');
       ref.invalidate(accountsNotifierProvider);
       
@@ -102,10 +102,7 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
         Navigator.of(context).pop();
       }
     } else {
-      final accountsState = ref.read(accountsNotifierProvider);
-      accountsState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../utils/currency_utils.dart';
 
 extension DoubleExtensions on double {
@@ -14,7 +16,7 @@ extension DoubleExtensions on double {
   }
 
   double roundToDecimal(int places) {
-    final mod = 10.0 * places;
+    final mod = math.pow(10, places).toDouble();
     return (this * mod).round() / mod;
   }
 }
