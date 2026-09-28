@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../transactions/domain/enums/transaction_type.dart';
 import 'add_transaction_dialog.dart';
@@ -32,6 +33,32 @@ class _AddTransactionTabbedModalState extends ConsumerState<AddTransactionTabbed
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    if (isMobile) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Add Transaction'),
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(icon: Icon(Icons.arrow_upward), text: 'Income'),
+                Tab(icon: Icon(Icons.arrow_downward), text: 'Expense'),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: const [
+              AddTransactionDialog(type: TransactionType.income, showDialog: false),
+              AddTransactionDialog(type: TransactionType.expense, showDialog: false),
+            ],
+          ),
+        ),
+      );
+    }
+
     return AlertDialog(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

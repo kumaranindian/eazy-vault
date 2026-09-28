@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
@@ -34,13 +35,30 @@ class TransactionDetailModal extends ConsumerStatefulWidget {
 class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal> {
   @override
   Widget build(BuildContext context) {
-    final transactionAsync = ref.watch(transactionProvider(widget.transactionId));
-    final theme = Theme.of(context);
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    if (isMobile) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Transaction Details')),
+          body: SafeArea(top: false, child: _buildBody(context, isMobile: true)),
+        ),
+      );
+    }
 
     return Dialog(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 500),
-        child: transactionAsync.when(
+        child: _buildBody(context, isMobile: false),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, {required bool isMobile}) {
+    final transactionAsync = ref.watch(transactionProvider(widget.transactionId));
+    final theme = Theme.of(context);
+
+    return transactionAsync.when(
           data: (transaction) {
             if (transaction == null) {
               return const Padding(
@@ -55,7 +73,8 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
+                // Header (the mobile Scaffold's AppBar covers this instead)
+                if (!isMobile)
                 Container(
                   padding: AppSpacing.paddingMD,
                   decoration: BoxDecoration(
@@ -277,9 +296,7 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
             padding: AppSpacing.paddingXL,
             child: Center(child: Text('Error loading transaction')),
           ),
-        ),
-      ),
-    );
+        );
   }
 
   Widget _buildDetailRow(
@@ -353,6 +370,36 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
   }
 
   void _showRepaymentDialog(BuildContext context, TransactionModel loan) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    void onSuccess(BuildContext dialogContext) {
+      Navigator.of(dialogContext).pop();
+      // Close the detail modal too; the loan's data has changed.
+      Navigator.of(context).pop();
+    }
+
+    if (isMobile) {
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: const Text('Record Repayment')),
+            body: SafeArea(
+              top: false,
+              child: Padding(
+                padding: AppSpacing.paddingMD,
+                child: LoanRepaymentForm(
+                  loanTransaction: loan,
+                  onSuccess: () => onSuccess(dialogContext),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) => Dialog(
@@ -362,11 +409,7 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
             padding: const EdgeInsets.all(24),
             child: LoanRepaymentForm(
               loanTransaction: loan,
-              onSuccess: () {
-                Navigator.of(dialogContext).pop();
-                // Close the detail modal too; the loan's data has changed.
-                Navigator.of(context).pop();
-              },
+              onSuccess: () => onSuccess(dialogContext),
             ),
           ),
         ),

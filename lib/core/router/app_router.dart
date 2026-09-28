@@ -20,6 +20,7 @@ import '../../features/transactions/presentation/pages/transaction_detail_page.d
 import '../../features/transactions/presentation/pages/transactions_page.dart';
 import '../constants/app_constants.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/navigation/app_scaffold.dart';
 import '../widgets/splash_screen.dart';
 
 part 'app_router.g.dart';
@@ -89,13 +90,29 @@ GoRouter appRouter(AppRouterRef ref) {
         path: RouteConstants.forgotPassword,
         builder: (context, state) => const ForgotPasswordPage(),
       ),
-      GoRoute(
-        path: RouteConstants.dashboard,
-        builder: (context, state) => const DashboardPage(),
-      ),
-      GoRoute(
-        path: RouteConstants.accounts,
-        builder: (context, state) => const AccountsPage(),
+      ShellRoute(
+        builder: (context, state, child) => AppScaffold(
+          location: state.matchedLocation,
+          child: child,
+        ),
+        routes: [
+          GoRoute(
+            path: RouteConstants.dashboard,
+            builder: (context, state) => const DashboardPage(),
+          ),
+          GoRoute(
+            path: RouteConstants.accounts,
+            builder: (context, state) => const AccountsPage(),
+          ),
+          GoRoute(
+            path: RouteConstants.categories,
+            builder: (context, state) => const CategoriesPage(),
+          ),
+          GoRoute(
+            path: RouteConstants.transactions,
+            builder: (context, state) => const TransactionsPage(),
+          ),
+        ],
       ),
       GoRoute(
         path: RouteConstants.addAccount,
@@ -116,10 +133,6 @@ GoRouter appRouter(AppRouterRef ref) {
         },
       ),
       GoRoute(
-        path: RouteConstants.categories,
-        builder: (context, state) => const CategoriesPage(),
-      ),
-      GoRoute(
         path: RouteConstants.addCategory,
         builder: (context, state) => const AddEditCategoryPage(),
       ),
@@ -129,10 +142,6 @@ GoRouter appRouter(AppRouterRef ref) {
           final id = state.pathParameters['id']!;
           return AddEditCategoryPage(categoryId: id);
         },
-      ),
-      GoRoute(
-        path: RouteConstants.transactions,
-        builder: (context, state) => const TransactionsPage(),
       ),
       GoRoute(
         path: RouteConstants.addIncome,

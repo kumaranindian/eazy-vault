@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -152,13 +153,16 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
       orElse: () => <CategoryModel>[],
     );
 
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Expanded(
           child: SingleChildScrollView(
+            padding: isMobile ? AppSpacing.paddingMD : EdgeInsets.zero,
             child: SizedBox(
-              width: 500,
+              width: isMobile ? double.infinity : 500,
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -294,36 +298,51 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
       ],
     );
 
+    final actionsRow = Row(
+      children: [
+        Expanded(
+          child: TextButton(
+            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ),
+        AppSpacing.gapSM,
+        Expanded(
+          child: FilledButton(
+            onPressed: _isLoading ? null : _handleSubmit,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text('Add ${widget.type.displayName}'),
+          ),
+        ),
+      ],
+    );
+
     if (!widget.showDialog) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           content,
           AppSpacing.gapMD,
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-              ),
-              AppSpacing.gapSM,
-              Expanded(
-                child: FilledButton(
-                  onPressed: _isLoading ? null : _handleSubmit,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text('Add ${widget.type.displayName}'),
-                ),
-              ),
-            ],
-          ),
+          actionsRow,
         ],
+      );
+    }
+
+    if (isMobile) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(title: Text('Add ${widget.type.displayName}')),
+          body: SafeArea(top: false, child: content),
+          bottomNavigationBar: SafeArea(
+            minimum: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: actionsRow,
+          ),
+        ),
       );
     }
 

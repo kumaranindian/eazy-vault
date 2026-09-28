@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
@@ -215,33 +216,23 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
 
   @override
   Widget build(BuildContext context) {
-    final transactionsState = ref.watch(transactionsNotifierProvider);
-    final categoriesState = ref.watch(categoriesNotifierProvider);
-    final accountsState = ref.watch(accountsNotifierProvider);
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
+    final isMobile = Breakpoints.isMobile(screenWidth);
 
-    // Responsive sizing
-    final bool isMobile = screenWidth < 600;
+    if (isMobile) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(title: const Text('All Transactions')),
+          body: _buildBody(context, isMobile: true),
+        ),
+      );
+    }
+
     final bool isTablet = screenWidth >= 600 && screenWidth < 1024;
-    final bool isDesktop = screenWidth >= 1024;
 
-    final double dialogWidth = isMobile
-        ? screenWidth * 0.95
-        : isTablet
-            ? screenWidth * 0.85
-            : screenWidth * 0.7;
-
-    final double dialogHeight = isMobile
-        ? screenHeight * 0.9
-        : isTablet
-            ? screenHeight * 0.85
-            : screenHeight * 0.8;
-
-    final categories = categoriesState.maybeWhen<List<CategoryModel>>(
-      loaded: (cats) => cats.where((c) => c.isActive).toList(),
-      orElse: () => <CategoryModel>[],
-    );
+    final double dialogWidth = isTablet ? screenWidth * 0.85 : screenWidth * 0.7;
+    final double dialogHeight = isTablet ? screenHeight * 0.85 : screenHeight * 0.8;
 
     return AlertDialog(
       title: Column(
@@ -287,10 +278,25 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
       content: SizedBox(
         width: dialogWidth,
         height: dialogHeight,
-        child: Column(
-          children: [
-            // Filters
-            Container(
+        child: _buildBody(context, isMobile: false),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, {required bool isMobile}) {
+    final transactionsState = ref.watch(transactionsNotifierProvider);
+    final categoriesState = ref.watch(categoriesNotifierProvider);
+    final accountsState = ref.watch(accountsNotifierProvider);
+
+    final categories = categoriesState.maybeWhen<List<CategoryModel>>(
+      loaded: (cats) => cats.where((c) => c.isActive).toList(),
+      orElse: () => <CategoryModel>[],
+    );
+
+    return Column(
+      children: [
+        // Filters
+        Container(
               padding: EdgeInsets.all(isMobile ? 12 : 16),
               decoration: BoxDecoration(
                 color: context.colorScheme.surface,
@@ -640,8 +646,6 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
               ),
             ),
           ],
-        ),
-      ),
-    );
+        );
   }
 }

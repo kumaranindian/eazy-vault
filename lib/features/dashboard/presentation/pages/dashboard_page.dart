@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
@@ -556,6 +557,29 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showTransferDialog(BuildContext context) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    if (isMobile) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: const Text('Transfer')),
+            body: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: AppSpacing.paddingMD,
+                child: TransferTransactionForm(
+                  onSuccess: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -575,6 +599,31 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showLoanDialog(BuildContext context, TransactionType loanType) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+    final title = loanType == TransactionType.loanGiven ? 'Lend Money' : 'Borrow Money';
+
+    if (isMobile) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: Text(title)),
+            body: SafeArea(
+              top: false,
+              child: Padding(
+                padding: AppSpacing.paddingMD,
+                child: LoanTransactionForm(
+                  loanType: loanType,
+                  onSuccess: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(

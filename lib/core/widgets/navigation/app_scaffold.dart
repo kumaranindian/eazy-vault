@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../constants/app_spacing.dart';
+import '../../constants/app_constants.dart';
 import 'bottom_nav_bar.dart';
 import 'navigation_rail_sidebar.dart';
 
-class AppScaffold extends StatefulWidget {
+/// Wraps the dashboard/transactions/accounts/categories routes with a
+/// bottom nav bar (mobile), a collapsed rail (tablet) or an extended rail
+/// (desktop). Used as a [ShellRoute] builder, so [location] always reflects
+/// the current one of those four routes.
+class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
     required this.child,
+    required this.location,
   });
 
   final Widget child;
+  final String location;
 
-  @override
-  State<AppScaffold> createState() => _AppScaffoldState();
-}
+  static const List<String> _routes = [
+    RouteConstants.dashboard,
+    RouteConstants.transactions,
+    RouteConstants.accounts,
+    RouteConstants.categories,
+  ];
 
-class _AppScaffoldState extends State<AppScaffold> {
-  int _selectedIndex = 0;
-
-  final List<NavigationDestination> _destinations = const [
+  static const List<NavigationDestination> _destinations = [
     NavigationDestination(
       icon: Icon(Icons.dashboard_outlined),
       selectedIcon: Icon(Icons.dashboard),
@@ -42,8 +49,13 @@ class _AppScaffoldState extends State<AppScaffold> {
     ),
   ];
 
-  void _onDestinationSelected(int index) {
-    setState(() => _selectedIndex = index);
+  int get _selectedIndex {
+    final index = _routes.indexOf(location);
+    return index == -1 ? 0 : index;
+  }
+
+  void _onDestinationSelected(BuildContext context, int index) {
+    context.go(_routes[index]);
   }
 
   @override
@@ -55,11 +67,12 @@ class _AppScaffoldState extends State<AppScaffold> {
         // Mobile: < 600px - Bottom Navigation
         if (width < 600) {
           return Scaffold(
-            body: widget.child,
+            body: child,
             bottomNavigationBar: BottomNavBar(
               destinations: _destinations,
               selectedIndex: _selectedIndex,
-              onDestinationSelected: _onDestinationSelected,
+              onDestinationSelected: (index) =>
+                  _onDestinationSelected(context, index),
             ),
           );
         }
@@ -72,11 +85,12 @@ class _AppScaffoldState extends State<AppScaffold> {
                 NavigationRailSidebar(
                   destinations: _destinations,
                   selectedIndex: _selectedIndex,
-                  onDestinationSelected: _onDestinationSelected,
+                  onDestinationSelected: (index) =>
+                      _onDestinationSelected(context, index),
                   extended: false,
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: widget.child),
+                Expanded(child: child),
               ],
             ),
           );
@@ -89,11 +103,12 @@ class _AppScaffoldState extends State<AppScaffold> {
               NavigationRailSidebar(
                 destinations: _destinations,
                 selectedIndex: _selectedIndex,
-                onDestinationSelected: _onDestinationSelected,
+                onDestinationSelected: (index) =>
+                    _onDestinationSelected(context, index),
                 extended: true,
               ),
               const VerticalDivider(thickness: 1, width: 1),
-              Expanded(child: widget.child),
+              Expanded(child: child),
             ],
           ),
         );
