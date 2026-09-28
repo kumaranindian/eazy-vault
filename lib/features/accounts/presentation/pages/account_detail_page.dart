@@ -69,19 +69,15 @@ class AccountDetailPage extends ConsumerWidget {
                     );
 
                     if (confirmed && context.mounted) {
-                      final success = await ref
+                      final failure = await ref
                           .read(accountsNotifierProvider.notifier)
                           .deleteAccount(accountId);
 
-                      if (success && context.mounted) {
+                      if (failure == null && context.mounted) {
                         context.showSuccessSnackBar('Account deleted successfully');
                         context.pop();
                       } else if (context.mounted) {
-                        final accountsState = ref.read(accountsNotifierProvider);
-                        accountsState.whenOrNull(
-                          error: (failure) =>
-                              context.showErrorSnackBar(failure.message),
-                        );
+                        context.showErrorSnackBar(failure?.message);
                       }
                     }
                   }

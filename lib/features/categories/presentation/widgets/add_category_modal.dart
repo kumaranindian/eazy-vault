@@ -71,13 +71,13 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
       createdBy: user.uid,
     );
 
-    final success = await ref.read(categoriesNotifierProvider.notifier).createCategory(category);
+    final failure = await ref.read(categoriesNotifierProvider.notifier).createCategory(category);
 
     if (!mounted) return;
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (failure == null) {
       context.showSuccessSnackBar('Category created successfully');
       ref.invalidate(categoriesNotifierProvider);
       
@@ -95,10 +95,7 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
         Navigator.of(context).pop();
       }
     } else {
-      final categoriesState = ref.read(categoriesNotifierProvider);
-      categoriesState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 

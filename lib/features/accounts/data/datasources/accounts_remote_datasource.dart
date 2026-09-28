@@ -60,7 +60,12 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
         throw const NotFoundException('Account not found');
       }
 
-      return AccountModel.fromFirestore(doc);
+      final account = AccountModel.fromFirestore(doc);
+      if (account.isDeleted) {
+        throw const NotFoundException('Account not found');
+      }
+
+      return account;
     } catch (e, stackTrace) {
       LoggerService.error('Get account error', error: e, stackTrace: stackTrace);
       if (e is NotFoundException) rethrow;
@@ -86,29 +91,93 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
     }
   }
 
+  /// Updates the editable account fields.
+  ///
+  /// `currentBalance` is never taken from [account] (the client copy may be
+  /// stale). A change of `openingBalance` is applied to the stored
+  /// `currentBalance` as a difference, inside a Firestore transaction.
   @override
   Future<AccountModel> updateAccount(String userId, AccountModel account) async {
     try {
       LoggerService.info('Updating account: ${account.id}');
 
-      final updatedAccount = account.copyWith(updatedAt: DateTime.now());
+      final docRef = _accountsCollection(userId).doc(account.id);
+      late AccountModel updatedAccount;
 
-      await _accountsCollection(userId)
-          .doc(account.id)
-          .update(updatedAccount.toFirestore());
+      await _firestore.runTransaction((transaction) async {
+        final doc = await transaction.get(docRef);
+        if (!doc.exists) {
+          throw const NotFoundException('Account not found');
+        }
+        final stored = AccountModel.fromFirestore(doc);
+        if (stored.isDeleted) {
+          throw const NotFoundException('Account not found');
+        }
+
+        final openingDelta = account.openingBalance - stored.openingBalance;
+        updatedAccount = stored.copyWith(
+          name: account.name,
+          type: account.type,
+          openingBalance: account.openingBalance,
+          currentBalance: stored.currentBalance + openingDelta,
+          color: account.color,
+          icon: account.icon,
+          isActive: account.isActive,
+          description: account.description,
+          updatedAt: DateTime.now(),
+        );
+
+        transaction.update(docRef, {
+          'name': updatedAccount.name,
+          'type': updatedAccount.type.name,
+          'openingBalance': updatedAccount.openingBalance,
+          'currentBalance': updatedAccount.currentBalance,
+          'color': updatedAccount.color,
+          'icon': updatedAccount.icon,
+          'isActive': updatedAccount.isActive,
+          'description': updatedAccount.description,
+          AppConstants.updatedAtField: Timestamp.fromDate(updatedAccount.updatedAt),
+        });
+      });
 
       LoggerService.info('Account updated: ${account.id}');
       return updatedAccount;
     } catch (e, stackTrace) {
       LoggerService.error('Update account error', error: e, stackTrace: stackTrace);
+      if (e is AppException) rethrow;
       throw ServerException('Failed to update account: ${e.toString()}');
     }
   }
 
+  /// Soft-deletes an account. Accounts that still have (non-deleted)
+  /// transactions, including incoming transfers, can't be deleted so no
+  /// transaction is left pointing at a deleted account.
   @override
   Future<void> deleteAccount(String userId, String accountId) async {
     try {
       LoggerService.info('Deleting account: $accountId');
+
+      final transactions = _firestore
+          .collection(AppConstants.userCollection)
+          .doc(userId)
+          .collection(AppConstants.transactionsCollection);
+
+      final direct = await transactions
+          .where('accountId', isEqualTo: accountId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .limit(1)
+          .get();
+      final incomingTransfers = await transactions
+          .where('metadata.toAccountId', isEqualTo: accountId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .limit(1)
+          .get();
+
+      if (direct.docs.isNotEmpty || incomingTransfers.docs.isNotEmpty) {
+        throw const ValidationException(
+          'This account has transactions. Delete them first or mark the account inactive.',
+        );
+      }
 
       await _accountsCollection(userId).doc(accountId).update({
         AppConstants.isDeletedField: true,
@@ -118,6 +187,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
       LoggerService.info('Account deleted: $accountId');
     } catch (e, stackTrace) {
       LoggerService.error('Delete account error', error: e, stackTrace: stackTrace);
+      if (e is AppException) rethrow;
       throw ServerException('Failed to delete account: ${e.toString()}');
     }
   }

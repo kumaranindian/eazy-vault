@@ -1,11 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../domain/services/transfer_service.dart';
+import 'transactions_providers.dart';
 
 part 'transfer_providers.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 TransferService transferService(TransferServiceRef ref) {
-  return TransferService(firestore: FirebaseFirestore.instance);
+  return TransferService(
+    balanceService: ref.watch(accountBalanceServiceProvider),
+  );
 }

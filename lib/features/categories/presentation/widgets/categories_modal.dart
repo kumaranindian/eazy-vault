@@ -10,6 +10,7 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../domain/enums/category_type.dart';
+import '../../data/models/category_model.dart';
 import '../providers/categories_notifier.dart';
 import '../widgets/add_category_modal.dart';
 import '../widgets/category_card.dart';
@@ -160,18 +161,15 @@ class _CategoriesModalState extends ConsumerState<CategoriesModal>
                           AppSpacing.gapXL,
                           FilledButton.icon(
                             onPressed: () async {
-                              final success = await ref
+                              final failure = await ref
                                   .read(categoriesNotifierProvider.notifier)
                                   .seedDefaultCategories();
 
-                              if (success && context.mounted) {
+                              if (failure == null && context.mounted) {
                                 ref.invalidate(categoriesNotifierProvider);
                                 context.showSuccessSnackBar('Default categories loaded successfully');
                               } else if (context.mounted) {
-                                final state = ref.read(categoriesNotifierProvider);
-                                state.whenOrNull(
-                                  error: (failure) => context.showErrorSnackBar(failure.message),
-                                );
+                                context.showErrorSnackBar(failure?.message);
                               }
                             },
                             icon: const Icon(Icons.auto_awesome),
@@ -233,7 +231,7 @@ class _CategoriesModalState extends ConsumerState<CategoriesModal>
     );
   }
 
-  Widget _buildCategoryList(BuildContext context, List categories) {
+  Widget _buildCategoryList(BuildContext context, List<CategoryModel> categories) {
     if (categories.isEmpty) {
       return Center(
         child: Column(
@@ -268,7 +266,7 @@ class _CategoriesModalState extends ConsumerState<CategoriesModal>
             onTap: () {
               Navigator.of(context).pop();
               context.push(
-                RouteConstants.categoryDetail.replaceAll(':id', category.id),
+                RouteConstants.editCategory.replaceAll(':id', category.id),
               );
             },
           ),

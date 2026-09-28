@@ -1,15 +1,18 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/services/loan_service.dart';
+import 'transactions_providers.dart';
 
 part 'loan_providers.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 LoanService loanService(LoanServiceRef ref) {
-  return LoanService(firestore: FirebaseFirestore.instance);
+  return LoanService(
+    firestore: ref.watch(firebaseFirestoreProvider),
+    balanceService: ref.watch(accountBalanceServiceProvider),
+  );
 }
 
 @riverpod

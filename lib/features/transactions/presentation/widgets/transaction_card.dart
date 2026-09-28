@@ -5,9 +5,11 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
+import '../../../categories/data/models/category_model.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
+import '../../domain/services/account_balance_service.dart';
 import '../../domain/extensions/transaction_extensions.dart';
 import '../../domain/models/loan_metadata.dart';
 
@@ -28,7 +30,11 @@ class TransactionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final categoryAsync = ref.watch(categoryProvider(transaction.categoryId));
+    // Transfers and loans use placeholder category ids ('transfer'/'loan')
+    // that have no category document, so don't look them up.
+    final categoryAsync = transaction.isTransfer || transaction.isLoan
+        ? const AsyncValue<CategoryModel?>.data(null)
+        : ref.watch(categoryProvider(transaction.categoryId));
     final accountAsync = ref.watch(accountProvider(transaction.accountId));
 
     return Dismissible(
@@ -188,9 +194,7 @@ class TransactionCard extends ConsumerWidget {
                           transaction.amount.toCurrency(),
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: transaction.isIncome
-                                ? Colors.green
-                                : theme.colorScheme.error,
+                            color: _amountColor(theme),
                           ),
                         ),
                         if (onEdit != null || onDelete != null) ...[
@@ -208,7 +212,9 @@ class TransactionCard extends ConsumerWidget {
                               }
                             },
                             itemBuilder: (context) => [
-                              if (onEdit != null)
+                              // Transfers and loans can't be edited.
+                              if (onEdit != null &&
+                                  AccountBalanceService.isEditableType(transaction.type))
                                 const PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
@@ -252,7 +258,25 @@ class TransactionCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildTransactionIcon(ThemeData theme, AsyncValue categoryAsync) {
+  /// Money in is green, money out is red, transfers (net zero) are neutral.
+  Color _amountColor(ThemeData theme) {
+    switch (transaction.type) {
+      case TransactionType.income:
+      case TransactionType.loanTaken:
+        return Colors.green;
+      case TransactionType.transfer:
+      case TransactionType.loanRepayment:
+        return theme.colorScheme.onSurface;
+      case TransactionType.expense:
+      case TransactionType.loanGiven:
+        return theme.colorScheme.error;
+    }
+  }
+
+  Widget _buildTransactionIcon(
+    ThemeData theme,
+    AsyncValue<CategoryModel?> categoryAsync,
+  ) {
     // Special handling for transfer and loan transactions
     if (transaction.isTransfer) {
       return Container(

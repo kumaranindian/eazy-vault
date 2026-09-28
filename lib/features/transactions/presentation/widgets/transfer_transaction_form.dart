@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
-import '../../data/models/transaction_model.dart';
-import '../../domain/enums/transaction_type.dart';
-import '../../domain/models/loan_metadata.dart';
+import '../providers/financial_refresh.dart';
 import '../providers/transactions_notifier.dart';
 import '../providers/transfer_providers.dart';
 
@@ -67,56 +67,28 @@ class _TransferTransactionFormState
         context.showErrorSnackBar('Invalid transfer amount');
         return;
       }
-      final transferService = ref.read(transferServiceProvider);
-      final transactionsNotifier = ref.read(transactionsNotifierProvider.notifier);
 
-      // Create the transfer
-      await transferService.createTransfer(
-        userId: user.uid,
-        fromAccountId: _fromAccountId!,
-        toAccountId: _toAccountId!,
-        amount: amount,
-        date: _selectedDate,
-        description: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-      );
+      final notes = _notesController.text.trim();
 
-      // Create transaction record for history
-      final transferMetadata = TransferMetadata(
-        fromAccountId: _fromAccountId!,
-        toAccountId: _toAccountId!,
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-      );
+      // Records the transfer and moves both balances in one atomic write.
+      await ref.read(transferServiceProvider).createTransfer(
+            userId: user.uid,
+            fromAccountId: _fromAccountId!,
+            toAccountId: _toAccountId!,
+            amount: amount,
+            date: _selectedDate,
+            description: notes.isEmpty ? null : notes,
+          );
 
-      final transaction = TransactionModel(
-        id: '',
-        type: TransactionType.transfer,
-        amount: amount,
-        accountId: _fromAccountId!,
-        categoryId: 'transfer', // Special category for transfers
-        date: _selectedDate,
-        description: _notesController.text.trim().isEmpty
-            ? 'Transfer'
-            : _notesController.text.trim(),
-        metadata: transferMetadata.toJson(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        createdBy: user.uid,
-      );
-
-      await transactionsNotifier.createTransaction(transaction);
-
-      // Refresh accounts and transactions
-      ref.invalidate(accountsNotifierProvider);
+      refreshFinancialData(ref.invalidate);
       ref.invalidate(transactionsNotifierProvider);
 
       if (mounted) {
         context.showSuccessSnackBar('Transfer completed successfully');
         widget.onSuccess?.call();
       }
+    } on AppException catch (e) {
+      if (mounted) context.showErrorSnackBar(e.message);
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Failed to create transfer: ${e.toString()}');
@@ -143,6 +115,7 @@ class _TransferTransactionFormState
         children: [
           // From Account
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _fromAccountId,
             decoration: const InputDecoration(
               labelText: 'From Account',
@@ -158,7 +131,7 @@ class _TransferTransactionFormState
                     const SizedBox(width: 8),
                     Expanded(child: Text(account.name)),
                     Text(
-                      '₹${account.currentBalance.toStringAsFixed(2)}',
+                      account.currentBalance.toCurrency(),
                       style: TextStyle(
                         color: account.currentBalance >= 0
                             ? Colors.green
@@ -188,6 +161,7 @@ class _TransferTransactionFormState
 
           // To Account
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _toAccountId,
             decoration: const InputDecoration(
               labelText: 'To Account',
@@ -203,7 +177,7 @@ class _TransferTransactionFormState
                     const SizedBox(width: 8),
                     Expanded(child: Text(account.name)),
                     Text(
-                      '₹${account.currentBalance.toStringAsFixed(2)}',
+                      account.currentBalance.toCurrency(),
                       style: TextStyle(
                         color: account.currentBalance >= 0
                             ? Colors.green

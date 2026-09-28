@@ -7,13 +7,15 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../categories/data/models/category_model.dart';
 import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
-import '../../../dashboard/presentation/providers/dashboard_providers.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
+import '../../domain/services/account_balance_service.dart';
 import '../providers/transactions_notifier.dart';
 
 class EditTransactionModal extends ConsumerStatefulWidget {
@@ -52,6 +54,13 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
     final transaction =
         await ref.read(transactionProvider(widget.transactionId).future);
     if (transaction != null && mounted) {
+      if (!AccountBalanceService.isEditableType(transaction.type)) {
+        context.showErrorSnackBar(
+          'Transfers and loans cannot be edited. Delete and re-create them instead.',
+        );
+        Navigator.of(context).pop();
+        return;
+      }
       setState(() {
         _existingTransaction = transaction;
         _selectedType = transaction.type;
@@ -123,47 +132,37 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
 
     final now = DateTime.now();
 
-    final transaction = TransactionModel(
-      id: _existingTransaction!.id,
+    final description = _descriptionController.text.trim();
+    final vendor = _vendorController.text.trim();
+    final attachment = _attachmentController.text.trim();
+
+    // Start from the stored record so fields this form doesn't show
+    // (e.g. metadata) are preserved.
+    final transaction = _existingTransaction!.copyWith(
       type: _selectedType,
       amount: amount,
       accountId: _selectedAccountId!,
       categoryId: _selectedCategoryId!,
       date: _selectedDate,
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
-      vendor: _vendorController.text.trim().isEmpty
-          ? null
-          : _vendorController.text.trim(),
-      attachments: _attachmentController.text.trim().isEmpty
-          ? null
-          : [_attachmentController.text.trim()],
-      createdAt: _existingTransaction!.createdAt,
+      description: description.isEmpty ? null : description,
+      vendor: vendor.isEmpty ? null : vendor,
+      attachments: attachment.isEmpty ? null : [attachment],
       updatedAt: now,
-      createdBy: user.uid,
     );
 
-    final success = await ref
+    final failure = await ref
         .read(transactionsNotifierProvider.notifier)
-        .updateTransaction(transaction, _existingTransaction);
+        .updateTransaction(transaction);
 
     if (!mounted) return;
 
     setState(() => _isLoading = false);
 
-    if (success) {
-      ref.invalidate(currentMonthStatsProvider);
-      ref.invalidate(totalBalanceProvider);
-      ref.invalidate(recentTransactionsProvider);
-      
+    if (failure == null) {
       context.showSuccessSnackBar('Transaction updated successfully');
       Navigator.of(context).pop();
     } else {
-      final transactionsState = ref.read(transactionsNotifierProvider);
-      transactionsState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 
@@ -172,21 +171,27 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
     final accountsState = ref.watch(accountsNotifierProvider);
     final categoriesState = ref.watch(categoriesNotifierProvider);
 
-    final activeAccounts = accountsState.maybeWhen(
-      loaded: (accounts) => accounts.where((a) => a.isActive).toList(),
-      orElse: () => [],
+    // Keep the currently selected account/category selectable even if it has
+    // since been deactivated, otherwise the dropdown has no matching item.
+    final activeAccounts = accountsState.maybeWhen<List<AccountModel>>(
+      loaded: (accounts) => accounts
+          .where((a) => a.isActive || a.id == _selectedAccountId)
+          .toList(),
+      orElse: () => <AccountModel>[],
     );
 
-    final filteredCategories = categoriesState.maybeWhen(
+    final filteredCategories = categoriesState.maybeWhen<List<CategoryModel>>(
       loaded: (categories) {
         final categoryType = _selectedType == TransactionType.income
             ? CategoryType.income
             : CategoryType.expense;
         return categories
-            .where((c) => c.type == categoryType && c.isActive)
+            .where((c) =>
+                c.type == categoryType &&
+                (c.isActive || c.id == _selectedCategoryId))
             .toList();
       },
-      orElse: () => [],
+      orElse: () => <CategoryModel>[],
     );
 
     return AlertDialog(
@@ -277,7 +282,7 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                   ],
-                  validator: Validators.amount,
+                  validator: Validators.positiveAmount,
                   enabled: !_isLoading,
                 ),
                 AppSpacing.gapMD,

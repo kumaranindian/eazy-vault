@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../accounts/data/models/account_model.dart';
@@ -11,6 +12,7 @@ import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../../domain/extensions/transaction_extensions.dart';
 import '../../domain/models/loan_metadata.dart';
+import '../providers/financial_refresh.dart';
 import '../providers/loan_providers.dart';
 import '../providers/transactions_notifier.dart';
 
@@ -76,22 +78,8 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
         context.showErrorSnackBar('Invalid repayment amount');
         return;
       }
-      final loanService = ref.read(loanServiceProvider);
-
-      // Record the repayment
-      await loanService.recordRepayment(
-        userId: user.uid,
-        loanTransactionId: widget.loanTransaction.id,
-        repaymentAmount: repaymentAmount,
-        accountId: _accountId!,
-        date: _selectedDate,
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-      );
-
-      // Create a repayment transaction record
-      final loanMetadata = widget.loanTransaction.loanMetadata!;
+      final loanMetadata =
+          widget.loanTransaction.loanMetadata ?? const LoanMetadata();
       final isLoanGiven = widget.loanTransaction.type == TransactionType.loanGiven;
 
       final repaymentMetadata = LoanMetadata(
@@ -120,21 +108,22 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
         createdBy: user.uid,
       );
 
-      final transactionsNotifier = ref.read(transactionsNotifierProvider.notifier);
-      await transactionsNotifier.createTransaction(repaymentTransaction);
+      // Records the repayment, the balance change and the loan's remaining
+      // amount in one atomic write.
+      await ref.read(loanServiceProvider).recordRepayment(
+            userId: user.uid,
+            repayment: repaymentTransaction,
+          );
 
-      // Refresh data
-      ref.invalidate(accountsNotifierProvider);
+      refreshFinancialData(ref.invalidate);
       ref.invalidate(transactionsNotifierProvider);
-      ref.invalidate(activeLoansProvider);
-      ref.invalidate(overdueLoansProvider);
-      ref.invalidate(totalOwedToYouProvider);
-      ref.invalidate(totalYouOweProvider);
 
       if (mounted) {
         context.showSuccessSnackBar('Repayment recorded successfully');
         widget.onSuccess?.call();
       }
+    } on AppException catch (e) {
+      if (mounted) context.showErrorSnackBar(e.message);
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Failed to record repayment: ${e.toString()}');
@@ -402,6 +391,7 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
 
             // Account Selection
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _accountId,
               decoration: const InputDecoration(
                 labelText: 'Account',

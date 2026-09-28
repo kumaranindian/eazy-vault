@@ -6,12 +6,17 @@ import '../../../../core/services/logger_service.dart';
 import '../../data/models/transaction_model.dart';
 import '../enums/transaction_type.dart';
 import '../models/loan_metadata.dart';
+import 'account_balance_service.dart';
 
 class LoanService {
-  LoanService({required FirebaseFirestore firestore})
-      : _firestore = firestore;
+  LoanService({
+    required FirebaseFirestore firestore,
+    required AccountBalanceService balanceService,
+  })  : _firestore = firestore,
+        _balanceService = balanceService;
 
   final FirebaseFirestore _firestore;
+  final AccountBalanceService _balanceService;
 
   /// Get all active loans (given and taken)
   Future<({List<TransactionModel> loansGiven, List<TransactionModel> loansTaken})>
@@ -83,71 +88,29 @@ class LoanService {
     }
   }
 
-  /// Record a loan repayment
-  Future<void> recordRepayment({
+  /// Records [repayment] (a `loanRepayment` transaction linked to a loan via
+  /// `metadata.linkedLoanId`).
+  ///
+  /// The repayment record, the account balance change and the loan's
+  /// remaining amount/status are written atomically by [AccountBalanceService].
+  Future<TransactionModel> recordRepayment({
     required String userId,
-    required String loanTransactionId,
-    required double repaymentAmount,
-    required String accountId,
-    required DateTime date,
-    String? notes,
+    required TransactionModel repayment,
   }) async {
     try {
       LoggerService.info('Recording loan repayment');
 
-      if (repaymentAmount <= 0) {
+      if (repayment.type != TransactionType.loanRepayment) {
+        throw const ValidationException('Not a loan repayment');
+      }
+      if (repayment.amount <= 0) {
         throw const ValidationException('Repayment amount must be positive');
       }
 
-      final loanRef = _firestore
-          .collection(AppConstants.userCollection)
-          .doc(userId)
-          .collection(AppConstants.transactionsCollection)
-          .doc(loanTransactionId);
-
-      await _firestore.runTransaction((transaction) async {
-        final loanDoc = await transaction.get(loanRef);
-
-        if (!loanDoc.exists) {
-          throw const NotFoundException('Loan transaction not found');
-        }
-
-        final loanData = loanDoc.data()!;
-        final metadata = loanData['metadata'] as Map<String, dynamic>?;
-
-        if (metadata == null) {
-          throw const ValidationException('Loan metadata not found');
-        }
-
-        final loanMetadata = LoanMetadata.fromJson(metadata);
-        final remainingAmount = loanMetadata.remainingAmount ??
-            loanMetadata.originalAmount ??
-            (loanData['amount'] as num).toDouble();
-
-        if (repaymentAmount > remainingAmount) {
-          throw const ValidationException(
-              'Repayment amount exceeds remaining loan amount');
-        }
-
-        final newRemainingAmount = remainingAmount - repaymentAmount;
-        final newStatus = newRemainingAmount == 0
-            ? LoanStatus.completed
-            : newRemainingAmount < remainingAmount
-                ? LoanStatus.partial
-                : loanMetadata.status;
-
-        final updatedMetadata = loanMetadata.copyWith(
-          remainingAmount: newRemainingAmount,
-          status: newStatus,
-        );
-
-        transaction.update(loanRef, {
-          'metadata': updatedMetadata.toJson(),
-          AppConstants.updatedAtField: Timestamp.now(),
-        });
-      });
+      final created = await _balanceService.createTransaction(userId, repayment);
 
       LoggerService.info('Loan repayment recorded successfully');
+      return created;
     } catch (e, stackTrace) {
       LoggerService.error('Record repayment error',
           error: e, stackTrace: stackTrace);

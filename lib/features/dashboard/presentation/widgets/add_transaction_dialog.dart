@@ -6,11 +6,12 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../categories/data/models/category_model.dart';
 import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
-import '../../../dashboard/presentation/providers/dashboard_providers.dart';
 import '../../../transactions/data/models/transaction_model.dart';
 import '../../../transactions/domain/enums/transaction_type.dart';
 import '../../../transactions/presentation/providers/transactions_notifier.dart';
@@ -113,7 +114,7 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
       createdBy: user.uid,
     );
 
-    final success = await ref
+    final failure = await ref
         .read(transactionsNotifierProvider.notifier)
         .createTransaction(transaction);
 
@@ -121,19 +122,11 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
 
     setState(() => _isLoading = false);
 
-    if (success) {
-      // Invalidate dashboard providers to refresh data
-      ref.invalidate(currentMonthStatsProvider);
-      ref.invalidate(totalBalanceProvider);
-      ref.invalidate(recentTransactionsProvider);
-      
+    if (failure == null) {
       context.showSuccessSnackBar('${widget.type.displayName} added successfully');
       Navigator.of(context).pop();
     } else {
-      final transactionsState = ref.read(transactionsNotifierProvider);
-      transactionsState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 
@@ -142,12 +135,12 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
     final accountsState = ref.watch(accountsNotifierProvider);
     final categoriesState = ref.watch(categoriesNotifierProvider);
 
-    final activeAccounts = accountsState.maybeWhen(
+    final activeAccounts = accountsState.maybeWhen<List<AccountModel>>(
       loaded: (accounts) => accounts.where((a) => a.isActive).toList(),
-      orElse: () => [],
+      orElse: () => <AccountModel>[],
     );
 
-    final filteredCategories = categoriesState.maybeWhen(
+    final filteredCategories = categoriesState.maybeWhen<List<CategoryModel>>(
       loaded: (categories) {
         final categoryType = widget.type == TransactionType.income
             ? CategoryType.income
@@ -156,7 +149,7 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
             .where((c) => c.type == categoryType && c.isActive)
             .toList();
       },
-      orElse: () => [],
+      orElse: () => <CategoryModel>[],
     );
 
     final content = Column(

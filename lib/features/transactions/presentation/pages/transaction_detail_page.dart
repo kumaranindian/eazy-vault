@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../domain/enums/transaction_type.dart';
+import '../../data/models/transaction_model.dart';
+import '../../domain/extensions/transaction_extensions.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
@@ -73,20 +74,16 @@ class TransactionDetailPage extends ConsumerWidget {
                     );
 
                     if (confirmed && context.mounted) {
-                      final success = await ref
+                      final failure = await ref
                           .read(transactionsNotifierProvider.notifier)
                           .deleteTransaction(transactionId, transaction);
 
-                      if (success && context.mounted) {
+                      if (failure == null && context.mounted) {
                         context.showSuccessSnackBar(
                             'Transaction deleted successfully');
                         context.pop();
                       } else if (context.mounted) {
-                        final state = ref.read(transactionsNotifierProvider);
-                        state.whenOrNull(
-                          error: (failure) =>
-                              context.showErrorSnackBar(failure.message),
-                        );
+                        context.showErrorSnackBar(failure?.message);
                       }
                     }
                   }
@@ -159,17 +156,13 @@ class TransactionDetailPage extends ConsumerWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: transaction.type == TransactionType.income
-                              ? Colors.green.withOpacity(0.1)
-                              : context.colorScheme.error.withOpacity(0.1),
+                          color: _flowColor(transaction, context).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           transaction.type.displayName,
                           style: context.textTheme.labelMedium?.copyWith(
-                            color: transaction.type == TransactionType.income
-                                ? Colors.green
-                                : context.colorScheme.error,
+                            color: _flowColor(transaction, context),
                           ),
                         ),
                       ),
@@ -178,9 +171,7 @@ class TransactionDetailPage extends ConsumerWidget {
                         transaction.amount.toCurrency(),
                         style: context.textTheme.headlineLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: transaction.type == TransactionType.income
-                              ? Colors.green
-                              : context.colorScheme.error,
+                          color: _flowColor(transaction, context),
                         ),
                       ),
                     ],
@@ -335,4 +326,12 @@ class TransactionDetailPage extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Money in is green, money out is red, moves between own accounts and
+/// repayments are neutral (see `TransactionModelExtensions.cashFlow`).
+Color _flowColor(TransactionModel transaction, BuildContext context) {
+  if (transaction.cashFlow > 0) return Colors.green;
+  if (transaction.cashFlow < 0) return context.colorScheme.error;
+  return context.colorScheme.onSurface;
 }

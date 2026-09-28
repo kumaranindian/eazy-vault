@@ -10,11 +10,14 @@ import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
-import '../../../dashboard/presentation/providers/dashboard_providers.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
+import '../../domain/extensions/transaction_extensions.dart';
+import '../../domain/models/loan_metadata.dart';
+import '../../domain/services/account_balance_service.dart';
 import '../providers/transactions_notifier.dart';
 import 'edit_transaction_modal.dart';
+import 'loan_repayment_form.dart';
 
 class TransactionDetailModal extends ConsumerStatefulWidget {
   const TransactionDetailModal({
@@ -119,9 +122,7 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                           transaction.amount.toCurrency(),
                           style: theme.textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: transaction.isIncome
-                                ? Colors.green
-                                : theme.colorScheme.error,
+                            color: _flowColor(transaction, theme),
                           ),
                         ),
                       ),
@@ -135,30 +136,22 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: transaction.isIncome
-                                ? Colors.green.withOpacity(0.1)
-                                : theme.colorScheme.error.withOpacity(0.1),
+                            color: _flowColor(transaction, theme).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                transaction.isIncome
-                                    ? Icons.arrow_upward
-                                    : Icons.arrow_downward,
+                                _flowIcon(transaction),
                                 size: 16,
-                                color: transaction.isIncome
-                                    ? Colors.green
-                                    : theme.colorScheme.error,
+                                color: _flowColor(transaction, theme),
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 transaction.type.displayName,
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  color: transaction.isIncome
-                                      ? Colors.green
-                                      : theme.colorScheme.error,
+                                  color: _flowColor(transaction, theme),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -180,7 +173,11 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                         context,
                         'Category',
                         categoryAsync.whenOrNull(
-                          data: (category) => category?.name ?? 'Unknown',
+                          data: (category) =>
+                              category?.name ??
+                              (transaction.isTransfer || transaction.isLoan
+                                  ? transaction.type.displayName
+                                  : 'Unknown'),
                         ) ?? 'Loading...',
                         Icons.category_outlined,
                       ),
@@ -225,19 +222,35 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                       // Actions
                       Row(
                         children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => EditTransactionModal(transactionId: transaction.id),
-                                );
-                              },
-                              icon: const Icon(Icons.edit_outlined),
-                              label: const Text('Edit'),
+                          // Transfers and loans can't be edited (only deleted
+                          // and re-created); see AccountBalanceService.
+                          if (AccountBalanceService.isEditableType(transaction.type)) ...[
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  showDialog<void>(
+                                    context: context,
+                                    builder: (context) => EditTransactionModal(transactionId: transaction.id),
+                                  );
+                                },
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Edit'),
+                              ),
                             ),
-                          ),
-                          AppSpacing.gapMD,
+                            AppSpacing.gapMD,
+                          ],
+                          if ((transaction.type == TransactionType.loanGiven ||
+                                  transaction.type == TransactionType.loanTaken) &&
+                              transaction.loanMetadata?.status != LoanStatus.completed) ...[
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _showRepaymentDialog(context, transaction),
+                                icon: const Icon(Icons.payments_outlined),
+                                label: const Text('Repayment'),
+                              ),
+                            ),
+                            AppSpacing.gapMD,
+                          ],
                           Expanded(
                             child: FilledButton.icon(
                               onPressed: () => _deleteTransaction(context, ref, transaction),
@@ -325,6 +338,42 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
     );
   }
 
+  /// Money in is green, money out is red, moves between own accounts and
+  /// repayments are neutral (see `TransactionModelExtensions.cashFlow`).
+  static Color _flowColor(TransactionModel transaction, ThemeData theme) {
+    if (transaction.cashFlow > 0) return Colors.green;
+    if (transaction.cashFlow < 0) return theme.colorScheme.error;
+    return theme.colorScheme.onSurface;
+  }
+
+  static IconData _flowIcon(TransactionModel transaction) {
+    if (transaction.cashFlow > 0) return Icons.arrow_upward;
+    if (transaction.cashFlow < 0) return Icons.arrow_downward;
+    return Icons.swap_horiz;
+  }
+
+  void _showRepaymentDialog(BuildContext context, TransactionModel loan) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: LoanRepaymentForm(
+              loanTransaction: loan,
+              onSuccess: () {
+                Navigator.of(dialogContext).pop();
+                // Close the detail modal too; the loan's data has changed.
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteTransaction(BuildContext context, WidgetRef ref, TransactionModel transaction) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -350,13 +399,12 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
     );
 
     if (confirmed == true && context.mounted) {
-      final success = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
-      if (success && context.mounted) {
-        ref.invalidate(currentMonthStatsProvider);
-        ref.invalidate(totalBalanceProvider);
-        ref.invalidate(recentTransactionsProvider);
+      final failure = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
+      if (failure == null && context.mounted) {
         context.showSuccessSnackBar('Transaction deleted successfully');
         Navigator.of(context).pop();
+      } else if (failure != null && context.mounted) {
+        context.showErrorSnackBar(failure.message);
       }
     }
   }

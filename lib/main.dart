@@ -16,10 +16,8 @@ void main() {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
 
-      await FirebaseService.initialize();
-
-      LoggerService.info('EazyVault application started');
-
+      // Install logging handlers first; FirebaseService and ErrorBoundary
+      // chain onto these instead of replacing them.
       FlutterError.onError = (details) {
         LoggerService.error(
           'Flutter Error',
@@ -32,6 +30,10 @@ void main() {
         LoggerService.error('Platform Error', error: error, stackTrace: stack);
         return true;
       };
+
+      await FirebaseService.initialize();
+
+      LoggerService.info('EazyVault application started');
 
       runApp(
         const ProviderScope(
