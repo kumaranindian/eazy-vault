@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -22,32 +24,50 @@ import '../widgets/splash_screen.dart';
 
 part 'app_router.g.dart';
 
-@riverpod
+/// Builds the router once. Auth changes re-run [GoRouter.redirect] through
+/// `refreshListenable` instead of recreating the router, so the current
+/// location (and deep links) survive sign-in, sign-out and page refreshes.
+@Riverpod(keepAlive: true)
 GoRouter appRouter(AppRouterRef ref) {
-  final authState = ref.watch(authStateChangesProvider);
+  final authState = ValueNotifier<AsyncValue<User?>>(
+    ref.read(authStateChangesProvider),
+  );
+  ref
+    ..listen(authStateChangesProvider, (_, next) => authState.value = next)
+    ..onDispose(authState.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: RouteConstants.splash,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
+    refreshListenable: authState,
     redirect: (context, state) {
-      final isAuthLoading = authState.isLoading;
-      final isAuthenticated = authState.value != null;
-      
-      final isLoginRoute = state.matchedLocation == RouteConstants.login;
-      final isRegisterRoute = state.matchedLocation == RouteConstants.register;
-      final isForgotPasswordRoute = state.matchedLocation == RouteConstants.forgotPassword;
-      final isAuthRoute = isLoginRoute || isRegisterRoute || isForgotPasswordRoute;
+      final auth = authState.value;
+      final location = state.matchedLocation;
+      final isSplash = location == RouteConstants.splash;
+      final isAuthRoute = location == RouteConstants.login ||
+          location == RouteConstants.register ||
+          location == RouteConstants.forgotPassword;
 
-      if (isAuthLoading) {
-        return RouteConstants.splash;
+      // Location the user originally asked for, carried through splash/login.
+      final from = _safeFrom(state.uri.queryParameters['from']);
+
+      if (auth.isLoading && !auth.hasValue) {
+        if (isSplash) return null;
+        return _withFrom(RouteConstants.splash, state.uri.toString());
       }
 
-      if (!isAuthenticated && !isAuthRoute) {
-        return RouteConstants.login;
+      final isAuthenticated = auth.valueOrNull != null;
+
+      if (!isAuthenticated) {
+        if (isAuthRoute) return null;
+        return _withFrom(
+          RouteConstants.login,
+          isSplash ? from : state.uri.toString(),
+        );
       }
 
-      if (isAuthenticated && isAuthRoute) {
-        return RouteConstants.dashboard;
+      if (isSplash || isAuthRoute) {
+        return from ?? RouteConstants.dashboard;
       }
 
       return null;
@@ -162,4 +182,28 @@ GoRouter appRouter(AppRouterRef ref) {
       ),
     ),
   );
+
+  ref.onDispose(router.dispose);
+  return router;
+}
+
+/// Only in-app absolute paths are accepted as a return location.
+String? _safeFrom(String? from) {
+  if (from == null || !from.startsWith('/') || from.startsWith('//')) {
+    return null;
+  }
+  final path = Uri.parse(from).path;
+  if (path == RouteConstants.splash ||
+      path == RouteConstants.login ||
+      path == RouteConstants.register ||
+      path == RouteConstants.forgotPassword) {
+    return null;
+  }
+  return from;
+}
+
+String _withFrom(String target, String? from) {
+  final safe = _safeFrom(from);
+  if (safe == null) return target;
+  return Uri(path: target, queryParameters: {'from': safe}).toString();
 }

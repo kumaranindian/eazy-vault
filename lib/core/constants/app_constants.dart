@@ -35,7 +35,6 @@ class RouteConstants {
   static const String editAccount = '/accounts/:id/edit';
 
   static const String categories = '/categories';
-  static const String categoryDetail = '/categories/:id';
   static const String addCategory = '/categories/add';
   static const String editCategory = '/categories/:id/edit';
 

@@ -8,9 +8,9 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
+import '../../../categories/data/models/category_model.dart';
 import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
-import '../../../dashboard/presentation/providers/dashboard_providers.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../providers/transactions_notifier.dart';
@@ -113,7 +113,11 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
       endDate = range.endDate;
     } else {
       startDate = _customStartDate;
-      endDate = _customEndDate;
+      // The picker returns midnight; include the whole last day.
+      final end = _customEndDate;
+      endDate = end == null
+          ? null
+          : DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
     }
 
     notifier.applyFilters(
@@ -186,12 +190,11 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
     );
 
     if (confirmed == true && context.mounted) {
-      final success = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
-      if (success && context.mounted) {
-        ref.invalidate(currentMonthStatsProvider);
-        ref.invalidate(totalBalanceProvider);
-        ref.invalidate(recentTransactionsProvider);
+      final failure = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
+      if (failure == null && context.mounted) {
         context.showSuccessSnackBar('Transaction deleted successfully');
+      } else if (failure != null && context.mounted) {
+        context.showErrorSnackBar(failure.message);
       }
     }
   }
@@ -235,9 +238,9 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
             ? screenHeight * 0.85
             : screenHeight * 0.8;
 
-    final categories = categoriesState.maybeWhen(
+    final categories = categoriesState.maybeWhen<List<CategoryModel>>(
       loaded: (cats) => cats.where((c) => c.isActive).toList(),
-      orElse: () => [],
+      orElse: () => <CategoryModel>[],
     );
 
     return AlertDialog(

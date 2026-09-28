@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/features/transactions/data/datasources/transactions_remote_datasource.dart';
-import '../../lib/features/transactions/data/models/transaction_model.dart';
-import '../../lib/features/transactions/data/repositories/transactions_repository_impl.dart';
-import '../../lib/features/transactions/domain/enums/transaction_type.dart';
-import '../../lib/features/transactions/domain/services/account_balance_service.dart';
+import 'package:eazyvault/features/transactions/data/datasources/transactions_remote_datasource.dart';
+import 'package:eazyvault/features/transactions/data/models/transaction_model.dart';
+import 'package:eazyvault/features/transactions/data/repositories/transactions_repository_impl.dart';
+import 'package:eazyvault/features/transactions/domain/enums/transaction_type.dart';
+import 'package:eazyvault/features/transactions/domain/services/account_balance_service.dart';
 import '../helpers/mock_firebase.dart';
 import '../helpers/test_helpers.dart';
 
@@ -103,7 +103,7 @@ void main() {
         final result = await repository.createTransaction(userId, transaction);
 
         expect(result.failure, isNull);
-        expect(result.transactionId, isNotEmpty);
+        expect(result.transaction?.id, isNotEmpty);
 
         final accountDoc = await firestore
             .collection('users')
@@ -135,7 +135,6 @@ void main() {
         final result = await repository.updateTransaction(
           userId,
           newTransaction,
-          oldTransaction,
         );
 
         expect(result.failure, isNull);

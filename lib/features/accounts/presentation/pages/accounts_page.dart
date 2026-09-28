@@ -10,6 +10,7 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../providers/accounts_notifier.dart';
+import '../widgets/recalculate_balances_action.dart';
 import '../widgets/account_card.dart';
 
 class AccountsPage extends ConsumerWidget {
@@ -29,6 +30,7 @@ class AccountsPage extends ConsumerWidget {
             onPressed: () => ref.read(accountsNotifierProvider.notifier).refresh(),
             tooltip: 'Refresh',
           ),
+          const SyncBalancesButton(),
         ],
       ),
       body: accountsState.when(

@@ -13,6 +13,7 @@ import '../../../../core/widgets/loading_indicator.dart';
 import '../providers/accounts_notifier.dart';
 import '../widgets/account_card.dart';
 import '../widgets/add_account_modal.dart';
+import '../widgets/recalculate_balances_action.dart';
 
 class AccountsModal extends ConsumerStatefulWidget {
   const AccountsModal({super.key});
@@ -169,6 +170,12 @@ class _AccountsModalState extends ConsumerState<AccountsModal> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            TextButton.icon(
+              onPressed: () => recalculateBalancesWithConfirmation(context, ref),
+              icon: const Icon(Icons.sync),
+              label: const Text('Sync balances'),
+            ),
+            const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: () {
                 showDialog(

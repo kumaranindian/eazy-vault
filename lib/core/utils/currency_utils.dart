@@ -5,27 +5,28 @@ import '../config/app_config.dart';
 class CurrencyUtils {
   const CurrencyUtils._();
 
+  /// Formats as `₹1,23,456.78`; negatives as `-₹1,23,456.78` (sign before
+  /// the currency symbol).
   static String format(double amount, {bool showSymbol = true}) {
     final formatter = NumberFormat('#,##,##0.00', 'en_IN');
-    final formattedAmount = formatter.format(amount);
+    final formattedAmount = formatter.format(amount.abs());
+    final sign = _isNegative(amount) ? '-' : '';
 
     if (showSymbol) {
-      return '${AppConfig.defaultCurrency}$formattedAmount';
+      return '$sign${AppConfig.defaultCurrency}$formattedAmount';
     }
 
-    return formattedAmount;
+    return '$sign$formattedAmount';
   }
 
+  /// Like [format] but always shows the sign: `+₹100.00` / `-₹100.00`.
   static String formatWithSign(double amount, {bool showSymbol = true}) {
-    final sign = amount >= 0 ? '+' : '-';
-    final formatted = format(amount, showSymbol: showSymbol);
-
-    if (showSymbol) {
-      return '$sign$formatted';
-    }
-
-    return '$sign$formatted';
+    final sign = _isNegative(amount) ? '-' : '+';
+    return '$sign${format(amount.abs(), showSymbol: showSymbol)}';
   }
+
+  /// Amounts that round to -0.00 are shown without a minus sign.
+  static bool _isNegative(double amount) => amount <= -0.005;
 
   static String formatCompact(double amount, {bool showSymbol = true}) {
     final absAmount = amount.abs();
@@ -41,15 +42,22 @@ class CurrencyUtils {
       formattedAmount = absAmount.toStringAsFixed(2);
     }
 
+    final sign = _isNegative(amount) ? '-' : '';
+
     if (showSymbol) {
-      return '${AppConfig.defaultCurrency}$formattedAmount';
+      return '$sign${AppConfig.defaultCurrency}$formattedAmount';
     }
 
-    return formattedAmount;
+    return '$sign$formattedAmount';
   }
 
+  /// Parses user/formatted input such as `-₹1,234.50`, keeping the sign.
   static double? parse(String value) {
-    final cleanedValue = value.replaceAll(RegExp(r'[^\d.]'), '');
-    return double.tryParse(cleanedValue);
+    final trimmed = value.trim();
+    final isNegative = trimmed.startsWith('-');
+    final cleanedValue = trimmed.replaceAll(RegExp(r'[^\d.]'), '');
+    final parsed = double.tryParse(cleanedValue);
+    if (parsed == null) return null;
+    return isNegative ? -parsed : parsed;
   }
 }

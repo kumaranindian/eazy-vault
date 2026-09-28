@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../features/authentication/presentation/providers/auth_notifier.dart';
 import '../../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../config/app_config.dart';
 import '../../constants/app_constants.dart';

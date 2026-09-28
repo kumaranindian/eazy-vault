@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import 'dashboard_providers.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../transactions/presentation/providers/transactions_providers.dart';
 
 part 'spending_trends_provider.g.dart';
 
@@ -16,45 +17,40 @@ class MonthlyTrendStats {
   });
 }
 
+/// Income and expense totals for the current month and the five before it,
+/// oldest first. Months without transactions are reported as zero.
 @riverpod
 Future<List<MonthlyTrendStats>> last6MonthsStats(Last6MonthsStatsRef ref) async {
   final now = DateTime.now();
-  final stats = <MonthlyTrendStats>[];
+  final firstMonth = DateTime(now.year, now.month - 5);
+  final months = [
+    for (var i = 0; i < 6; i++) DateTime(firstMonth.year, firstMonth.month + i),
+  ];
 
-  try {
-    // For now, use current month stats as placeholder
-    // TODO: Implement actual monthly stats fetching
-    final monthlyStats = await ref.watch(
-      currentMonthStatsProvider.future,
-    );
-
-    final totalIncome = monthlyStats.income;
-    final totalExpense = monthlyStats.expense;
-
-    for (int i = 5; i >= 0; i--) {
-      final month = DateTime(now.year, now.month - i, 1);
-
-      // Distribute evenly for demo, with safety checks
-      final monthIncome = totalIncome > 0 ? totalIncome / 6 : 0.0;
-      final monthExpense = totalExpense > 0 ? totalExpense / 6 : 0.0;
-
-      stats.add(MonthlyTrendStats(
-        month: month,
-        income: monthIncome.isFinite ? monthIncome : 0.0,
-        expense: monthExpense.isFinite ? monthExpense : 0.0,
-      ));
-    }
-  } catch (e) {
-    // Return empty stats on error
-    for (int i = 5; i >= 0; i--) {
-      final month = DateTime(now.year, now.month - i, 1);
-      stats.add(MonthlyTrendStats(
-        month: month,
-        income: 0.0,
-        expense: 0.0,
-      ));
-    }
+  final user = ref.watch(currentUserProvider);
+  if (user == null) {
+    return [
+      for (final month in months)
+        MonthlyTrendStats(month: month, income: 0, expense: 0),
+    ];
   }
 
-  return stats;
+  final result = await ref.watch(transactionsRepositoryProvider).getMonthlyTotals(
+        user.uid,
+        startDate: firstMonth,
+        endDate: DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999),
+      );
+
+  if (result.failure != null) {
+    throw Exception(result.failure!.message);
+  }
+
+  return [
+    for (final month in months)
+      MonthlyTrendStats(
+        month: month,
+        income: result.totals[month]?.income ?? 0,
+        expense: result.totals[month]?.expense ?? 0,
+      ),
+  ];
 }

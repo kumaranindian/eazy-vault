@@ -100,7 +100,7 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
       createdBy: user.uid,
     );
 
-    final success = _existingCategory == null
+    final failure = _existingCategory == null
         ? await ref.read(categoriesNotifierProvider.notifier).createCategory(category)
         : await ref.read(categoriesNotifierProvider.notifier).updateCategory(category);
 
@@ -108,7 +108,7 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (failure == null) {
       context.showSuccessSnackBar(
         _existingCategory == null
             ? 'Category created successfully'
@@ -129,10 +129,7 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
         context.pop();
       }
     } else {
-      final categoriesState = ref.read(categoriesNotifierProvider);
-      categoriesState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 

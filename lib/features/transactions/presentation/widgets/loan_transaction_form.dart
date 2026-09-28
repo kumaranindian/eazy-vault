@@ -140,12 +140,15 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
         createdBy: user.uid,
       );
 
-      final transactionsNotifier = ref.read(transactionsNotifierProvider.notifier);
-      await transactionsNotifier.createTransaction(transaction);
+      // The notifier refreshes balances and loan data on success.
+      final failure = await ref
+          .read(transactionsNotifierProvider.notifier)
+          .createTransaction(transaction);
 
-      // Refresh accounts and transactions
-      ref.invalidate(accountsNotifierProvider);
-      ref.invalidate(transactionsNotifierProvider);
+      if (failure != null) {
+        if (mounted) context.showErrorSnackBar(failure.message);
+        return;
+      }
 
       if (mounted) {
         context.showSuccessSnackBar(
@@ -262,6 +265,7 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
 
             // Account Selection
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _accountId,
               decoration: const InputDecoration(
                 labelText: 'Account',
