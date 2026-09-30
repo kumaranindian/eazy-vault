@@ -65,10 +65,17 @@ class AccountCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Column(
+              AppSpacing.gapSM,
+              // Large balances shrink rather than squeezing the name away.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
                     account.currentBalance.toCurrency(),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -76,6 +83,7 @@ class AccountCard extends StatelessWidget {
                           ? theme.colorScheme.primary
                           : theme.colorScheme.error,
                     ),
+                  ),
                   ),
                   if (!account.isActive) ...[
                     AppSpacing.gapXS,
@@ -97,6 +105,7 @@ class AccountCard extends StatelessWidget {
                     ),
                   ],
                 ],
+              ),
               ),
             ],
           ),

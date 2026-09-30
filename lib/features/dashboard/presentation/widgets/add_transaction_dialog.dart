@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/models/failure.dart';
+import '../../../../core/services/logger_service.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/branded_dialog_title.dart';
+import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
@@ -114,9 +119,17 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
       createdBy: user.uid,
     );
 
-    final failure = await ref
-        .read(transactionsNotifierProvider.notifier)
-        .createTransaction(transaction);
+    Failure? failure;
+    try {
+      failure = await ref
+          .read(transactionsNotifierProvider.notifier)
+          .createTransaction(transaction);
+    } catch (e, st) {
+      LoggerService.error('Add transaction failed', error: e, stackTrace: st);
+      failure = Failure.unknownError(
+        ErrorMessages.from(e, action: 'save the transaction'),
+      );
+    }
 
     if (!mounted) return;
 
@@ -152,13 +165,10 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
       orElse: () => <CategoryModel>[],
     );
 
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
+    // Scrolls on its own; the host (dialog or tab) bounds its height.
+    final content = SingleChildScrollView(
             child: SizedBox(
-              width: 500,
+              width: Breakpoints.formMaxWidth,
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -171,11 +181,12 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                       hint: '0.00',
                       prefixIcon: const Icon(Icons.currency_rupee),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: Validators.amount,
+                      validator: Validators.positiveAmount,
                       enabled: !_isLoading,
                     ),
                     AppSpacing.gapMD,
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _selectedAccountId,
                       decoration: const InputDecoration(
                         labelText: 'Account',
@@ -188,7 +199,12 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                             children: [
                               Text(account.icon),
                               AppSpacing.gapSM,
-                              Text(account.name),
+                              Expanded(
+                                child: Text(
+                                  account.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
                             ],
                           ),
                         );
@@ -201,13 +217,15 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                     ),
                     AppSpacing.gapMD,
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _selectedCategoryId,
                       decoration: InputDecoration(
                         labelText: 'Category',
                         prefixIcon: const Icon(Icons.category_outlined),
                         helperText: filteredCategories.isEmpty
-                            ? 'No categories available for ${widget.type.displayName}'
+                            ? 'No ${widget.type.displayName.toLowerCase()} categories yet. Add one from Categories.'
                             : null,
+                        helperMaxLines: 2,
                       ),
                       items: filteredCategories.map((category) {
                         return DropdownMenuItem<String>(
@@ -216,7 +234,12 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                             children: [
                               Text(category.icon),
                               AppSpacing.gapSM,
-                              Text(category.name),
+                              Expanded(
+                                child: Text(
+                                  category.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
                             ],
                           ),
                         );
@@ -257,12 +280,7 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                       label: 'Vendor (Optional)',
                       hint: 'Where did you spend?',
                       prefixIcon: const Icon(Icons.store_outlined),
-                      validator: (value) {
-                        if (value != null && value.isNotEmpty && value.length > 100) {
-                          return 'Vendor name must be less than 100 characters';
-                        }
-                        return null;
-                      },
+                      validator: (value) => Validators.vendorName(value),
                       enabled: !_isLoading,
                     ),
                     AppSpacing.gapMD,
@@ -289,16 +307,12 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                 ),
               ),
             ),
-          ),
-        ),
-      ],
     );
 
     if (!widget.showDialog) {
       return Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          content,
+          Expanded(child: content),
           AppSpacing.gapMD,
           Row(
             children: [
@@ -313,12 +327,11 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                 child: FilledButton(
                   onPressed: _isLoading ? null : _handleSubmit,
                   child: _isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text('Add ${widget.type.displayName}'),
+                      ? const ButtonProgress(label: 'Saving...')
+                      : Text(
+                          'Add ${widget.type.displayName}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                 ),
               ),
             ],
@@ -328,45 +341,8 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
     }
 
     return AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 24,
-                color: context.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppConfig.appName,
-                style: context.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppConfig.appTagline,
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text(
-            'Add ${widget.type.displayName}',
-            style: context.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      title: BrandedDialogTitle(
+        title: Text('Add ${widget.type.displayName}'),
       ),
       content: content,
       actions: [
@@ -377,12 +353,8 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
         FilledButton(
           onPressed: _isLoading ? null : _handleSubmit,
           child: _isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-          : Text('Add ${widget.type.displayName}'),
+              ? const ButtonProgress(label: 'Saving...')
+              : Text('Add ${widget.type.displayName}'),
         ),
       ],
     );

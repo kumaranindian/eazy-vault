@@ -10,6 +10,10 @@ import '../../../../core/extensions/double_extensions.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../providers/accounts_notifier.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/responsive_layout.dart';
 
 class AccountDetailPage extends ConsumerWidget {
   const AccountDetailPage({
@@ -92,12 +96,16 @@ class AccountDetailPage extends ConsumerWidget {
       body: accountAsync.when(
         data: (account) {
           if (account == null) {
-            return const Center(
-              child: Text('Account not found'),
+            return const EmptyState(
+              title: 'Account not found',
+              message: 'It may have been deleted.',
+              iconData: Icons.account_balance_wallet_outlined,
             );
           }
 
-          return ListView(
+          return ResponsiveContent(
+            maxWidth: 800,
+            child: ListView(
             padding: AppSpacing.paddingMD,
             children: [
               Card(
@@ -231,27 +239,14 @@ class AccountDetailPage extends ConsumerWidget {
                 ),
               ),
             ],
+            ),
           );
         },
         loading: () => const LoadingIndicator(),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              AppSpacing.gapMD,
-              Text(
-                'Failed to load account',
-                style: context.textTheme.titleMedium,
-              ),
-              AppSpacing.gapSM,
-              Text(
-                error.toString(),
-                style: context.textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+        error: (error, stack) => ErrorView(
+          title: 'Failed to load account',
+          message: ErrorMessages.from(error, action: 'load this account'),
+          onRetry: () => ref.invalidate(accountProvider(accountId)),
         ),
       ),
     );
@@ -266,9 +261,10 @@ class AccountDetailPage extends ConsumerWidget {
     IconData? icon,
   }) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Expanded(
+          child: Row(
           children: [
             if (icon != null) ...[
               Icon(
@@ -278,16 +274,23 @@ class AccountDetailPage extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
             ],
-            Text(
+            Flexible(
+              child: Text(
               label,
               style: context.textTheme.bodyMedium?.copyWith(
                 color: context.colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
+            ),
           ],
         ),
-        Text(
+        ),
+        const SizedBox(width: 12),
+        // Long values (descriptions) wrap instead of overflowing.
+        Flexible(
+          child: Text(
           value,
+          textAlign: TextAlign.end,
           style: isHighlighted
               ? context.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -297,6 +300,7 @@ class AccountDetailPage extends ConsumerWidget {
                   fontWeight: FontWeight.w600,
                   color: valueColor,
                 ),
+        ),
         ),
       ],
     );

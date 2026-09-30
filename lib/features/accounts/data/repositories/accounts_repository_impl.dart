@@ -4,6 +4,7 @@ import '../../../../core/services/logger_service.dart';
 import '../../domain/repositories/accounts_repository.dart';
 import '../datasources/accounts_remote_datasource.dart';
 import '../models/account_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class AccountsRepositoryImpl implements AccountsRepository {
   AccountsRepositoryImpl({required AccountsRemoteDataSource remoteDataSource})
@@ -26,7 +27,7 @@ class AccountsRepositoryImpl implements AccountsRepository {
       return (accounts: <AccountModel>[], failure: Failure.networkError(e.message));
     } catch (e) {
       LoggerService.error('Unknown error', error: e);
-      return (accounts: <AccountModel>[], failure: Failure.unknownError(e.toString()));
+      return (accounts: <AccountModel>[], failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -46,7 +47,7 @@ class AccountsRepositoryImpl implements AccountsRepository {
       return (account: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (account: null, failure: Failure.unknownError(e.toString()));
+      return (account: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -66,7 +67,7 @@ class AccountsRepositoryImpl implements AccountsRepository {
       return (account: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (account: null, failure: Failure.unknownError(e.toString()));
+      return (account: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -89,7 +90,7 @@ class AccountsRepositoryImpl implements AccountsRepository {
       return (account: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (account: null, failure: Failure.unknownError(e.toString()));
+      return (account: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -106,7 +107,7 @@ class AccountsRepositoryImpl implements AccountsRepository {
       return Failure.serverError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 

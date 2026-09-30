@@ -5,12 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/widgets/loading_indicator.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../providers/financial_refresh.dart';
 import '../providers/transactions_notifier.dart';
 import '../providers/transfer_providers.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/utils/validators.dart';
 
 class TransferTransactionForm extends ConsumerStatefulWidget {
   const TransferTransactionForm({
@@ -60,7 +63,9 @@ class _TransferTransactionFormState
 
     try {
       final user = ref.read(currentUserProvider);
-      if (user == null) throw Exception('User not authenticated');
+      if (user == null) {
+        throw const AuthenticationException(ErrorMessages.sessionExpired);
+      }
 
       final amount = double.tryParse(_amountController.text.trim()) ?? 0;
       if (amount <= 0) {
@@ -91,7 +96,7 @@ class _TransferTransactionFormState
       if (mounted) context.showErrorSnackBar(e.message);
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to create transfer: ${e.toString()}');
+        context.showErrorSnackBar(ErrorMessages.from(e, action: 'create transfer'));
       }
     } finally {
       if (mounted) {
@@ -110,7 +115,8 @@ class _TransferTransactionFormState
 
     return Form(
       key: _formKey,
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // From Account
@@ -143,7 +149,9 @@ class _TransferTransactionFormState
                 ),
               );
             }).toList(),
-            onChanged: (value) => setState(() => _fromAccountId = value),
+            onChanged: _isLoading
+                ? null
+                : (value) => setState(() => _fromAccountId = value),
             validator: (value) =>
                 value == null ? 'Please select source account' : null,
           ),
@@ -189,9 +197,16 @@ class _TransferTransactionFormState
                 ),
               );
             }).toList(),
-            onChanged: (value) => setState(() => _toAccountId = value),
-            validator: (value) =>
-                value == null ? 'Please select destination account' : null,
+            onChanged: _isLoading
+                ? null
+                : (value) => setState(() => _toAccountId = value),
+            validator: (value) {
+              if (value == null) return 'Please select destination account';
+              if (value == _fromAccountId) {
+                return 'Choose a different account than the source';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 16),
 
@@ -207,16 +222,7 @@ class _TransferTransactionFormState
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
             ],
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter amount';
-              }
-              final amount = double.tryParse(value);
-              if (amount == null || amount <= 0) {
-                return 'Please enter a valid amount';
-              }
-              return null;
-            },
+            validator: Validators.positiveAmount,
           ),
           const SizedBox(height: 16),
 
@@ -262,14 +268,11 @@ class _TransferTransactionFormState
           FilledButton(
             onPressed: _isLoading ? null : _submitTransfer,
             child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const ButtonProgress(label: 'Transferring...')
                 : const Text('Transfer'),
           ),
         ],
+      ),
       ),
     );
   }

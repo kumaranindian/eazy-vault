@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../features/authentication/presentation/providers/auth_notifier.dart';
 import '../../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../config/app_config.dart';
 import '../../constants/app_constants.dart';
 import '../../constants/app_spacing.dart';
+import '../sign_out_button.dart';
 
 class NavigationRailSidebar extends ConsumerWidget {
   const NavigationRailSidebar({
@@ -68,7 +68,8 @@ class NavigationRailSidebar extends ConsumerWidget {
                           Text(
                             AppConfig.appTagline,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              color:
+                                  theme.colorScheme.onSurface.withOpacity(0.6),
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -92,7 +93,15 @@ class NavigationRailSidebar extends ConsumerWidget {
                           ),
                         ),
                         AppSpacing.gapSM,
-                        Expanded(
+                        // Not Expanded: NavigationRail measures `leading`
+                        // under an unbounded width constraint (it sizes
+                        // itself from its content), so a flex child here
+                        // throws a RenderFlex "unbounded width" layout
+                        // exception the moment this rail is actually shown.
+                        // A fixed width still lets the Text widgets below
+                        // ellipsize instead of overflowing.
+                        SizedBox(
+                          width: 160,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -144,18 +153,7 @@ class NavigationRailSidebar extends ConsumerWidget {
                     children: [
                       const Divider(),
                       AppSpacing.gapSM,
-                      ListTile(
-                        leading: const Icon(Icons.logout),
-                        title: const Text('Sign Out'),
-                        onTap: () async {
-                          await ref
-                              .read(authNotifierProvider.notifier)
-                              .signOut();
-                        },
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
-                      ),
+                      const SignOutButton(asListTile: true),
                       AppSpacing.gapSM,
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -172,7 +170,12 @@ class NavigationRailSidebar extends ConsumerWidget {
                 ),
               ),
             )
-          : null,
+          // Collapsed (tablet) rail: otherwise there's no way to sign out
+          // once the user has navigated away from the dashboard.
+          : const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: SignOutButton(),
+            ),
       destinations: destinations
           .map(
             (dest) => NavigationRailDestination(

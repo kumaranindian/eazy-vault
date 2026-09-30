@@ -6,6 +6,7 @@ import '../../../../core/services/logger_service.dart';
 import '../../domain/enums/category_type.dart';
 import '../models/category_model.dart';
 import '../models/default_categories.dart';
+import '../../../../core/utils/error_messages.dart';
 
 abstract class CategoriesRemoteDataSource {
   Future<List<CategoryModel>> getCategories(String userId, {CategoryType? type});
@@ -57,7 +58,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       return categories;
     } catch (e, stackTrace) {
       LoggerService.error('Get categories error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to fetch categories: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load categories'));
     }
   }
 
@@ -76,7 +77,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get category error', error: e, stackTrace: stackTrace);
       if (e is NotFoundException) rethrow;
-      throw ServerException('Failed to fetch category: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load category'));
     }
   }
 
@@ -94,7 +95,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       return categoryWithId;
     } catch (e, stackTrace) {
       LoggerService.error('Create category error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to create category: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'create category'));
     }
   }
 
@@ -113,7 +114,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       return updatedCategory;
     } catch (e, stackTrace) {
       LoggerService.error('Update category error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to update category: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'update category'));
     }
   }
 
@@ -130,7 +131,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       LoggerService.info('Category deleted: $categoryId');
     } catch (e, stackTrace) {
       LoggerService.error('Delete category error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to delete category: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'delete category'));
     }
   }
 
@@ -171,7 +172,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       LoggerService.info('Default categories seeded successfully');
     } catch (e, stackTrace) {
       LoggerService.error('Seed categories error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to seed categories: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'add the default categories'));
     }
   }
 
@@ -200,7 +201,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       });
     } catch (e, stackTrace) {
       LoggerService.error('Watch categories error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to watch categories: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load categories'));
     }
   }
 }

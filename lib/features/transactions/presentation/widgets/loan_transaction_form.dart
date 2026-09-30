@@ -10,6 +10,9 @@ import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../../domain/models/loan_metadata.dart';
 import '../providers/transactions_notifier.dart';
+import '../../../../core/exceptions/app_exception.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/utils/validators.dart';
 
 class LoanTransactionForm extends ConsumerStatefulWidget {
   const LoanTransactionForm({
@@ -91,11 +94,18 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
       return;
     }
 
+    if (_dueDate != null && _dueDate!.isBefore(_selectedDate)) {
+      context.showErrorSnackBar('Due date must be on or after the loan date');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final user = ref.read(currentUserProvider);
-      if (user == null) throw Exception('User not authenticated');
+      if (user == null) {
+        throw const AuthenticationException(ErrorMessages.sessionExpired);
+      }
 
       final amount = double.tryParse(_amountController.text.trim()) ?? 0;
       if (amount <= 0) {
@@ -160,7 +170,7 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to record loan: ${e.toString()}');
+        context.showErrorSnackBar(ErrorMessages.from(e, action: 'record loan'));
       }
     } finally {
       if (mounted) {
@@ -196,11 +206,18 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                   color: isLoanGiven ? Colors.red : Colors.green,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: context.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: context.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: _isLoading ? null : () => Navigator.of(context).maybePop(),
                 ),
               ],
             ),
@@ -216,12 +233,7 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                 border: const OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.words,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter $partyLabel';
-                }
-                return null;
-              },
+              validator: (value) => Validators.name(value, fieldName: partyLabel),
             ),
             const SizedBox(height: 16),
 
@@ -234,7 +246,9 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                 prefixIcon: Icon(Icons.contact_phone),
                 border: OutlineInputBorder(),
               ),
-              keyboardType: TextInputType.phone,
+              // Plain text: phone keyboards can't type an email address.
+              keyboardType: TextInputType.text,
+              validator: Validators.optionalContact,
             ),
             const SizedBox(height: 16),
 
@@ -250,16 +264,7 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter amount';
-                }
-                final amount = double.tryParse(value);
-                if (amount == null || amount <= 0) {
-                  return 'Please enter a valid amount';
-                }
-                return null;
-              },
+              validator: Validators.positiveAmount,
             ),
             const SizedBox(height: 16),
 
@@ -300,7 +305,14 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                   lastDate: DateTime.now(),
                 );
                 if (date != null) {
-                  setState(() => _selectedDate = date);
+                  setState(() {
+                    _selectedDate = date;
+                    // Keep the due date valid when the loan date moves past it.
+                    if (_dueDate != null && _dueDate!.isBefore(date)) {
+                      _dueDate = null;
+                      _hasInstallments = false;
+                    }
+                  });
                 }
               },
               child: InputDecorator(
@@ -321,7 +333,7 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
               onTap: () async {
                 final date = await showDatePicker(
                   context: context,
-                  initialDate: _dueDate ?? DateTime.now().add(const Duration(days: 30)),
+                  initialDate: _dueDate ?? _selectedDate.add(const Duration(days: 30)),
                   firstDate: _selectedDate,
                   lastDate: DateTime(2100),
                 );
@@ -392,7 +404,10 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                   : (value) => setState(() => _hasInstallments = value),
               contentPadding: EdgeInsets.zero,
               subtitle: _dueDate == null
-                  ? const Text('Please set due date first', style: TextStyle(color: Colors.red))
+                  ? Text(
+                      'Please set due date first',
+                      style: TextStyle(color: context.colorScheme.error),
+                    )
                   : null,
             ),
 
@@ -401,10 +416,10 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Text('Number of Installments:'),
-                  const Spacer(),
+                  const Expanded(child: Text('Number of Installments:')),
                   IconButton(
                     icon: const Icon(Icons.remove),
+                    tooltip: 'Fewer installments',
                     onPressed: _numberOfInstallments > 2
                         ? () => setState(() => _numberOfInstallments--)
                         : null,
@@ -417,6 +432,7 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.add),
+                    tooltip: 'More installments',
                     onPressed: _numberOfInstallments < 12
                         ? () => setState(() => _numberOfInstallments++)
                         : null,
@@ -445,7 +461,10 @@ class _LoanTransactionFormState extends ConsumerState<LoanTransactionForm> {
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        semanticsLabel: 'Recording',
+                      ),
                     )
                   : Icon(isLoanGiven ? Icons.arrow_upward : Icons.arrow_downward),
               label: Text(_isLoading ? 'Recording...' : 'Record $title'),

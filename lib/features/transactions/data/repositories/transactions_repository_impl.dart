@@ -8,6 +8,7 @@ import '../../domain/repositories/transactions_repository.dart';
 import '../../domain/services/account_balance_service.dart';
 import '../datasources/transactions_remote_datasource.dart';
 import '../models/transaction_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
   TransactionsRepositoryImpl({
@@ -49,7 +50,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.networkError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.unknownError(e.toString()));
+      return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -69,7 +70,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transaction: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transaction: null, failure: Failure.unknownError(e.toString()));
+      return (transaction: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -96,7 +97,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transaction: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transaction: null, failure: Failure.unknownError(e.toString()));
+      return (transaction: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -123,7 +124,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transaction: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transaction: null, failure: Failure.unknownError(e.toString()));
+      return (transaction: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -148,7 +149,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return Failure.serverError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -181,7 +182,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (total: 0.0, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (total: 0.0, failure: Failure.unknownError(e.toString()));
+      return (total: 0.0, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -203,7 +204,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (totals: <String, ({double income, double expense})>{}, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (totals: <String, ({double income, double expense})>{}, failure: Failure.unknownError(e.toString()));
+      return (totals: <String, ({double income, double expense})>{}, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -230,7 +231,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
       return (
         totals: <DateTime, ({double income, double expense})>{},
-        failure: Failure.unknownError(e.toString()),
+        failure: Failure.unknownError(ErrorMessages.from(e)),
       );
     }
   }

@@ -23,6 +23,8 @@ class ConfirmationDialog extends StatelessWidget {
     final theme = Theme.of(context);
 
     return AlertDialog(
+      // Long messages scroll instead of overflowing on landscape phones.
+      scrollable: true,
       title: Text(title),
       content: Text(message),
       actions: [

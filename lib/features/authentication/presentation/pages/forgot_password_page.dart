@@ -9,6 +9,7 @@ import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
 import '../widgets/auth_layout.dart';
+import '../../../../core/widgets/loading_indicator.dart';
 
 class ForgotPasswordPage extends ConsumerStatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -115,16 +116,13 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handlePasswordReset,
                     child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const ButtonProgress(label: 'Sending...')
                         : const Text('Send Reset Link'),
                   ),
                   AppSpacing.gapXL,
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Remember your password? ',

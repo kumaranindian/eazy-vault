@@ -7,6 +7,7 @@ import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_datasource.dart';
 import '../datasources/auth_remote_datasource.dart';
 import '../models/user_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl({
@@ -55,7 +56,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return (user: _emptyUser(), failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (user: _emptyUser(), failure: Failure.unknownError(e.toString()));
+      return (user: _emptyUser(), failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -84,7 +85,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return (user: _emptyUser(), failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (user: _emptyUser(), failure: Failure.unknownError(e.toString()));
+      return (user: _emptyUser(), failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -104,7 +105,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return (user: _emptyUser(), failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (user: _emptyUser(), failure: Failure.unknownError(e.toString()));
+      return (user: _emptyUser(), failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -119,7 +120,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Failure.authenticationError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -136,7 +137,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Failure.networkError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -150,7 +151,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Failure.authenticationError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -164,7 +165,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Failure.authenticationError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -178,7 +179,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return (user: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (user: null, failure: Failure.unknownError(e.toString()));
+      return (user: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -192,7 +193,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return (rememberMe: false, failure: Failure.unknownError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (rememberMe: false, failure: Failure.unknownError(e.toString()));
+      return (rememberMe: false, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -206,7 +207,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return (email: null, failure: Failure.unknownError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (email: null, failure: Failure.unknownError(e.toString()));
+      return (email: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 

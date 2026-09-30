@@ -9,6 +9,8 @@ import '../../../transactions/presentation/providers/loan_providers.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
 import '../../../transactions/presentation/widgets/transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_detail_modal.dart';
+import '../../../../core/widgets/form_dialog.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class LoansSummaryCard extends ConsumerWidget {
   const LoansSummaryCard({super.key});
@@ -34,17 +36,32 @@ class LoansSummaryCard extends ConsumerWidget {
                   color: context.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Loans & Debts',
-                  style: context.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Loans & Debts',
+                    style: context.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.arrow_forward),
                   onPressed: () async {
-                    final loans = await ref.read(activeLoansProvider.future);
+                    final ({
+                      List<TransactionModel> loansGiven,
+                      List<TransactionModel> loansTaken
+                    }) loans;
+                    try {
+                      loans = await ref.read(activeLoansProvider.future);
+                    } catch (e) {
+                      if (context.mounted) {
+                        context.showErrorSnackBar(
+                          ErrorMessages.from(e, action: 'load your loans'),
+                        );
+                      }
+                      return;
+                    }
                     if (!context.mounted) return;
                     _showLoansList(
                       context,
@@ -114,7 +131,7 @@ class LoansSummaryCard extends ConsumerWidget {
                         count: loansGivenCount,
                       ),
                       loading: () => const _LoadingSummaryRow(),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (_, __) => const _SummaryUnavailable(),
                     ),
                     const SizedBox(height: 12),
 
@@ -128,7 +145,7 @@ class LoansSummaryCard extends ConsumerWidget {
                         count: loansTakenCount,
                       ),
                       loading: () => const _LoadingSummaryRow(),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (_, __) => const _SummaryUnavailable(),
                     ),
                   ],
                 );
@@ -187,16 +204,10 @@ class LoansSummaryCard extends ConsumerWidget {
   void _showLoanForm(BuildContext context, TransactionType loanType) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: LoanTransactionForm(
+      builder: (dialogContext) => FormDialog(
+        child: LoanTransactionForm(
               loanType: loanType,
               onSuccess: () => Navigator.of(dialogContext).pop(),
-            ),
-          ),
         ),
       ),
     );
@@ -368,6 +379,20 @@ class _LoadingSummaryRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SummaryUnavailable extends StatelessWidget {
+  const _SummaryUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Total unavailable. Pull down to refresh.',
+      style: context.textTheme.bodySmall?.copyWith(
+        color: context.colorScheme.error,
       ),
     );
   }

@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/services/logger_service.dart';
+import '../../../../core/utils/error_messages.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../transactions/domain/services/account_balance_service.dart';
@@ -49,17 +52,53 @@ Future<void> recalculateBalancesWithConfirmation(
   if (!confirmed || !context.mounted) return;
 
   final service = ref.read(accountBalanceServiceProvider);
-  try {
-    final result = await service.recalculateBalances(user.uid);
-    refreshFinancialData(ref.invalidate);
-    if (!context.mounted) return;
-    await showDialog<void>(
+  // showDialog pushes onto the root navigator; pop the progress dialog there.
+  final navigator = Navigator.of(context, rootNavigator: true);
+  // Blocks the UI (and repeat taps) while every transaction is re-read.
+  unawaited(
+    showDialog<void>(
       context: context,
-      builder: (_) => _SyncResultDialog(userId: user.uid, initialResult: result),
-    );
-  } on AppException catch (e) {
-    if (context.mounted) context.showErrorSnackBar(e.message);
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              SizedBox(width: 16),
+              Expanded(child: Text('Syncing balances...')),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  BalanceRecalculation? result;
+  String? error;
+  try {
+    result = await service.recalculateBalances(user.uid);
+    refreshFinancialData(ref.invalidate);
+  } catch (e, st) {
+    LoggerService.error('Sync balances failed', error: e, stackTrace: st);
+    error = ErrorMessages.from(e, action: 'sync balances');
+  } finally {
+    navigator.pop();
   }
+
+  if (!context.mounted) return;
+  if (result == null) {
+    context.showErrorSnackBar(error);
+    return;
+  }
+  await showDialog<void>(
+    context: context,
+    builder: (_) => _SyncResultDialog(userId: user.uid, initialResult: result!),
+  );
 }
 
 class _SyncResultDialog extends ConsumerStatefulWidget {
@@ -101,8 +140,11 @@ class _SyncResultDialogState extends ConsumerState<_SyncResultDialog> {
           );
         }
       });
-    } on AppException catch (e) {
-      if (mounted) context.showErrorSnackBar(e.message);
+    } catch (e, st) {
+      LoggerService.error('Repair transfer failed', error: e, stackTrace: st);
+      if (mounted) {
+        context.showErrorSnackBar(ErrorMessages.from(e, action: 'repair the transfer'));
+      }
     } finally {
       if (mounted) setState(() => _repairingId = null);
     }
@@ -176,7 +218,7 @@ class _SyncResultDialogState extends ConsumerState<_SyncResultDialog> {
                                     (transfer.metadata?['fromAccountId'] ?? transfer.accountId))
                                   DropdownMenuItem(
                                     value: account.id,
-                                    child: Text(account.name),
+                                    child: Text(account.name, overflow: TextOverflow.ellipsis),
                                   ),
                             ],
                             onChanged: _repairingId != null

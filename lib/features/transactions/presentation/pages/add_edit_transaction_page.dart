@@ -17,6 +17,11 @@ import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../../domain/services/account_balance_service.dart';
 import '../providers/transactions_notifier.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/responsive_layout.dart';
 
 class AddEditTransactionPage extends ConsumerStatefulWidget {
   const AddEditTransactionPage({
@@ -46,6 +51,8 @@ class _AddEditTransactionPageState
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
+  // Edit mode: why the stored transaction couldn't be loaded.
+  String? _fetchError;
   TransactionModel? _existingTransaction;
 
   @override
@@ -60,10 +67,25 @@ class _AddEditTransactionPageState
   }
 
   Future<void> _loadTransaction() async {
-    final transaction =
-        await ref.read(transactionProvider(widget.transactionId!).future);
-    if (transaction != null && mounted) {
-      if (!AccountBalanceService.isEditableType(transaction.type)) {
+    if (_fetchError != null) setState(() => _fetchError = null);
+    final TransactionModel? transaction;
+    try {
+      transaction =
+          await ref.read(transactionProvider(widget.transactionId!).future);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _fetchError = ErrorMessages.from(e, action: 'load this transaction'));
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (transaction == null) {
+      setState(() => _fetchError = 'This transaction no longer exists.');
+      return;
+    }
+    final loaded = transaction;
+    {
+      if (!AccountBalanceService.isEditableType(loaded.type)) {
         context.showErrorSnackBar(
           'Transfers and loans cannot be edited. Delete and re-create them instead.',
         );
@@ -71,17 +93,17 @@ class _AddEditTransactionPageState
         return;
       }
       setState(() {
-        _existingTransaction = transaction;
-        _selectedType = transaction.type;
-        _amountController.text = transaction.amount.toString();
-        _selectedAccountId = transaction.accountId;
-        _selectedCategoryId = transaction.categoryId;
-        _selectedDate = transaction.date;
-        _descriptionController.text = transaction.description ?? '';
-        _vendorController.text = transaction.vendor ?? '';
-        if (transaction.attachments != null &&
-            transaction.attachments!.isNotEmpty) {
-          _attachmentController.text = transaction.attachments!.first;
+        _existingTransaction = loaded;
+        _selectedType = loaded.type;
+        _amountController.text = loaded.amount.toString();
+        _selectedAccountId = loaded.accountId;
+        _selectedCategoryId = loaded.categoryId;
+        _selectedDate = loaded.date;
+        _descriptionController.text = loaded.description ?? '';
+        _vendorController.text = loaded.vendor ?? '';
+        if (loaded.attachments != null &&
+            loaded.attachments!.isNotEmpty) {
+          _attachmentController.text = loaded.attachments!.first;
         }
       });
     }
@@ -126,7 +148,7 @@ class _AddEditTransactionPageState
 
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      context.showErrorSnackBar('User not authenticated');
+      context.showErrorSnackBar(ErrorMessages.sessionExpired);
       return;
     }
 
@@ -226,15 +248,25 @@ class _AddEditTransactionPageState
       orElse: () => <CategoryModel>[],
     );
 
+    final isEditRoute = widget.transactionId != null;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isEditing
+          isEditRoute
               ? 'Edit Transaction'
               : 'Add ${_selectedType.displayName}',
         ),
       ),
-      body: Form(
+      // In edit mode never show the blank "add" form: saving it would create
+      // a new transaction instead of updating the existing one.
+      body: _fetchError != null
+          ? ErrorView(message: _fetchError!, onRetry: _loadTransaction)
+          : isEditRoute && !isEditing
+              ? const LoadingIndicator()
+              : ResponsiveContent(
+        maxWidth: Breakpoints.formMaxWidth,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: AppSpacing.paddingMD,
@@ -278,6 +310,7 @@ class _AddEditTransactionPageState
             ),
             AppSpacing.gapMD,
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _selectedAccountId,
               decoration: const InputDecoration(
                 labelText: 'Account',
@@ -290,7 +323,7 @@ class _AddEditTransactionPageState
                     children: [
                       Text(account.icon),
                       AppSpacing.gapSM,
-                      Text(account.name),
+                      Expanded(child: Text(account.name, overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 );
@@ -303,6 +336,7 @@ class _AddEditTransactionPageState
             ),
             AppSpacing.gapMD,
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _selectedCategoryId,
               decoration: InputDecoration(
                 labelText: 'Category',
@@ -318,7 +352,7 @@ class _AddEditTransactionPageState
                     children: [
                       Text(category.icon),
                       AppSpacing.gapSM,
-                      Text(category.name),
+                      Expanded(child: Text(category.name, overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 );
@@ -391,17 +425,14 @@ class _AddEditTransactionPageState
             ElevatedButton(
               onPressed: _isLoading ? null : _handleSave,
               child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const ButtonProgress(label: 'Saving...')
                   : Text(
                       isEditing ? 'Update Transaction' : 'Add ${_selectedType.displayName}',
                     ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

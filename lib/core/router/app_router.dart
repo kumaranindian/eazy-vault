@@ -20,6 +20,7 @@ import '../../features/transactions/presentation/pages/transaction_detail_page.d
 import '../../features/transactions/presentation/pages/transactions_page.dart';
 import '../constants/app_constants.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/navigation/app_scaffold.dart';
 import '../widgets/splash_screen.dart';
 
 part 'app_router.g.dart';
@@ -89,13 +90,38 @@ GoRouter appRouter(AppRouterRef ref) {
         path: RouteConstants.forgotPassword,
         builder: (context, state) => const ForgotPasswordPage(),
       ),
-      GoRoute(
-        path: RouteConstants.dashboard,
-        builder: (context, state) => const DashboardPage(),
-      ),
-      GoRoute(
-        path: RouteConstants.accounts,
-        builder: (context, state) => const AccountsPage(),
+      ShellRoute(
+        builder: (context, state, child) => AppScaffold(
+          currentPath: state.matchedLocation,
+          child: child,
+        ),
+        routes: [
+          // `NoTransitionPage`: these four are tabs of the same shell, not
+          // separate screens to slide/fade between — only the content under
+          // the rail/bottom nav should change when a tab is tapped, not the
+          // whole screen (the rail/bottom nav itself lives in AppScaffold,
+          // above this nested Navigator, so it's untouched either way).
+          GoRoute(
+            path: RouteConstants.dashboard,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: DashboardPage()),
+          ),
+          GoRoute(
+            path: RouteConstants.accounts,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: AccountsPage()),
+          ),
+          GoRoute(
+            path: RouteConstants.categories,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: CategoriesPage()),
+          ),
+          GoRoute(
+            path: RouteConstants.transactions,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: TransactionsPage()),
+          ),
+        ],
       ),
       GoRoute(
         path: RouteConstants.addAccount,
@@ -116,10 +142,6 @@ GoRouter appRouter(AppRouterRef ref) {
         },
       ),
       GoRoute(
-        path: RouteConstants.categories,
-        builder: (context, state) => const CategoriesPage(),
-      ),
-      GoRoute(
         path: RouteConstants.addCategory,
         builder: (context, state) => const AddEditCategoryPage(),
       ),
@@ -129,10 +151,6 @@ GoRouter appRouter(AppRouterRef ref) {
           final id = state.pathParameters['id']!;
           return AddEditCategoryPage(categoryId: id);
         },
-      ),
-      GoRoute(
-        path: RouteConstants.transactions,
-        builder: (context, state) => const TransactionsPage(),
       ),
       GoRoute(
         path: RouteConstants.addIncome,

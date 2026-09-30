@@ -36,7 +36,7 @@ class GoogleSignInButton extends StatelessWidget {
             ),
           ),
           AppSpacing.gapMD,
-          Text(label),
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
         ],
       ),
     );

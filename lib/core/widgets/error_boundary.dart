@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/app_spacing.dart';
 import '../services/logger_service.dart';
+import '../theme/app_theme.dart';
 
 class ErrorBoundary extends StatefulWidget {
   const ErrorBoundary({
@@ -39,7 +41,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
         );
         return;
       }
-      
+
       if (previousOnError != null) {
         previousOnError(details);
       } else {
@@ -61,8 +63,9 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
           }
         });
       }
-      
-      widget.onError?.call(details.exception, details.stack ?? StackTrace.empty);
+
+      widget.onError
+          ?.call(details.exception, details.stack ?? StackTrace.empty);
     };
   }
 
@@ -76,73 +79,82 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
+      // Separate MaterialApp, so it needs the app theme explicitly; the
+      // Builder makes Theme.of below resolve to it.
       return MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Padding(
-              padding: AppSpacing.paddingXL,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 80,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  AppSpacing.gapXL,
-                  Text(
-                    'Oops! Something went wrong',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  AppSpacing.gapMD,
-                  Text(
-                    'We encountered an unexpected error. Please try again.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: SingleChildScrollView(
+                padding: AppSpacing.paddingXL,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 80,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    AppSpacing.gapXL,
+                    Text(
+                      'Oops! Something went wrong',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                      textAlign: TextAlign.center,
+                    ),
+                    AppSpacing.gapMD,
+                    Text(
+                      'We encountered an unexpected error. Please try again.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.6),
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    // Technical details only in debug builds.
+                    if (kDebugMode && _error != null) ...[
+                      AppSpacing.gapMD,
+                      Container(
+                        padding: AppSpacing.paddingMD,
+                        decoration: BoxDecoration(
                           color: Theme.of(context)
                               .colorScheme
-                              .onSurface
-                              .withOpacity(0.6),
+                              .errorContainer
+                              .withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                    textAlign: TextAlign.center,
-                  ),
-                  if (_error != null) ...[
-                    AppSpacing.gapMD,
-                    Container(
-                      padding: AppSpacing.paddingMD,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .errorContainer
-                            .withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _error.toString(),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.error,
-                              fontFamily: 'monospace',
-                            ),
-                        textAlign: TextAlign.center,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  AppSpacing.gapXL,
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _reset,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Try Again'),
+                        child: Text(
+                          _error.toString(),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                    fontFamily: 'monospace',
+                                  ),
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
-                  ),
-                ],
+                    AppSpacing.gapXL,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: _reset,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try Again'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

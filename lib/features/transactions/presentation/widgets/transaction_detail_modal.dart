@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/widgets/branded_dialog_title.dart';
+import '../../../../core/widgets/error_view.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -18,6 +20,7 @@ import '../../domain/services/account_balance_service.dart';
 import '../providers/transactions_notifier.dart';
 import 'edit_transaction_modal.dart';
 import 'loan_repayment_form.dart';
+import '../../../../core/widgets/form_dialog.dart';
 
 class TransactionDetailModal extends ConsumerStatefulWidget {
   const TransactionDetailModal({
@@ -32,6 +35,8 @@ class TransactionDetailModal extends ConsumerStatefulWidget {
 }
 
 class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal> {
+  bool _isDeleting = false;
+
   @override
   Widget build(BuildContext context) {
     final transactionAsync = ref.watch(transactionProvider(widget.transactionId));
@@ -39,7 +44,7 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
 
     return Dialog(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
+        constraints: const BoxConstraints(maxWidth: Breakpoints.formMaxWidth),
         child: transactionAsync.when(
           data: (transaction) {
             if (transaction == null) {
@@ -61,69 +66,40 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primaryContainer,
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(28),
+                      top: Radius.circular(AppSpacing.radiusXL),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.account_balance_wallet,
-                            size: 24,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            AppConfig.appName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        AppConfig.appTagline,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Transaction Details',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                  child: BrandedDialogTitle(
+                    title: const Text('Transaction Details'),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
                   ),
                 ),
 
-                // Content
-                SingleChildScrollView(
+                // Content: Flexible so it scrolls when the dialog is limited
+                // by a short viewport (landscape, keyboard).
+                Flexible(
+                  child: SingleChildScrollView(
                   padding: AppSpacing.paddingMD,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Amount
                       Center(
-                        child: Text(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
                           transaction.amount.toCurrency(),
                           style: theme.textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: _flowColor(transaction, theme),
                           ),
+                        ),
                         ),
                       ),
                       AppSpacing.gapMD,
@@ -219,52 +195,57 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                       ],
                       AppSpacing.gapXL,
 
-                      // Actions
-                      Row(
+                      // Actions: side by side when there's room, stacked
+                      // full-width buttons on narrow phones.
+                      _ActionButtons(
                         children: [
                           // Transfers and loans can't be edited (only deleted
                           // and re-created); see AccountBalanceService.
-                          if (AccountBalanceService.isEditableType(transaction.type)) ...[
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  showDialog<void>(
-                                    context: context,
-                                    builder: (context) => EditTransactionModal(transactionId: transaction.id),
-                                  );
-                                },
-                                icon: const Icon(Icons.edit_outlined),
-                                label: const Text('Edit'),
-                              ),
+                          if (AccountBalanceService.isEditableType(transaction.type))
+                            OutlinedButton.icon(
+                              onPressed: _isDeleting
+                                  ? null
+                                  : () {
+                                      showDialog<void>(
+                                        context: context,
+                                        builder: (context) => EditTransactionModal(transactionId: transaction.id),
+                                      );
+                                    },
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Edit'),
                             ),
-                            AppSpacing.gapMD,
-                          ],
                           if ((transaction.type == TransactionType.loanGiven ||
                                   transaction.type == TransactionType.loanTaken) &&
-                              transaction.loanMetadata?.status != LoanStatus.completed) ...[
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _showRepaymentDialog(context, transaction),
-                                icon: const Icon(Icons.payments_outlined),
-                                label: const Text('Repayment'),
-                              ),
+                              transaction.loanMetadata?.status != LoanStatus.completed)
+                            OutlinedButton.icon(
+                              onPressed: _isDeleting
+                                  ? null
+                                  : () => _showRepaymentDialog(context, transaction),
+                              icon: const Icon(Icons.payments_outlined),
+                              label: const Text('Repayment'),
                             ),
-                            AppSpacing.gapMD,
-                          ],
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: () => _deleteTransaction(context, ref, transaction),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Delete'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: theme.colorScheme.error,
-                              ),
+                          FilledButton.icon(
+                            onPressed: _isDeleting
+                                ? null
+                                : () => _deleteTransaction(context, ref, transaction),
+                            icon: _isDeleting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.delete_outline),
+                            label: Text(_isDeleting ? 'Deleting...' : 'Delete'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: theme.colorScheme.error,
+                              foregroundColor: theme.colorScheme.onError,
                             ),
                           ),
                         ],
                       ),
                     ],
                   ),
+                ),
                 ),
               ],
             );
@@ -273,9 +254,10 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
             padding: AppSpacing.paddingXL,
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, __) => const Padding(
-            padding: AppSpacing.paddingXL,
-            child: Center(child: Text('Error loading transaction')),
+          error: (_, __) => ErrorView(
+            title: 'Could not load transaction',
+            message: 'Please check your connection and try again.',
+            onRetry: () => ref.invalidate(transactionProvider(widget.transactionId)),
           ),
         ),
       ),
@@ -355,20 +337,14 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
   void _showRepaymentDialog(BuildContext context, TransactionModel loan) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: LoanRepaymentForm(
+      builder: (dialogContext) => FormDialog(
+        child: LoanRepaymentForm(
               loanTransaction: loan,
               onSuccess: () {
                 Navigator.of(dialogContext).pop();
                 // Close the detail modal too; the loan's data has changed.
                 Navigator.of(context).pop();
               },
-            ),
-          ),
         ),
       ),
     );
@@ -399,7 +375,9 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
     );
 
     if (confirmed == true && context.mounted) {
+      setState(() => _isDeleting = true);
       final failure = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
+      if (mounted) setState(() => _isDeleting = false);
       if (failure == null && context.mounted) {
         context.showSuccessSnackBar('Transaction deleted successfully');
         Navigator.of(context).pop();
@@ -407,5 +385,38 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
         context.showErrorSnackBar(failure.message);
       }
     }
+  }
+}
+
+class _ActionButtons extends StatelessWidget {
+  const _ActionButtons({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 120.0 * children.length + AppSpacing.md) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) AppSpacing.gapSM,
+                children[i],
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) AppSpacing.gapMD,
+              Expanded(child: children[i]),
+            ],
+          ],
+        );
+      },
+    );
   }
 }

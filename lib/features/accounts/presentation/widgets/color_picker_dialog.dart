@@ -28,12 +28,14 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Choose Color'),
+      // Fixed-size swatches: a sensible width on desktop (double.maxFinite
+      // stretched them across the screen) that still shrinks on phones.
       content: SizedBox(
-        width: double.maxFinite,
+        width: 360,
         child: GridView.builder(
           shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 72,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
           ),
@@ -42,7 +44,11 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
             final color = AppColors.accountColors[index];
             final isSelected = _selectedColor == color.value;
 
-            return InkWell(
+            return Semantics(
+              label: 'Color ${index + 1}',
+              selected: isSelected,
+              button: true,
+              child: InkWell(
               onTap: () => setState(() => _selectedColor = color.value),
               borderRadius: BorderRadius.circular(8),
               child: Container(
@@ -64,6 +70,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                       )
                     : null,
               ),
+            ),
             );
           },
         ),

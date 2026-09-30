@@ -140,4 +140,16 @@ class Validators {
 
     return null;
   }
+
+  /// Optional phone number or email. Empty is valid.
+  static String? optionalContact(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    if (text.contains('@')) return email(text);
+    final digits = text.replaceAll(RegExp(r'[\s\-()+]'), '');
+    if (!RegExp(r'^\d{7,15}$').hasMatch(digits)) {
+      return 'Please enter a valid phone number or email';
+    }
+    return null;
+  }
 }

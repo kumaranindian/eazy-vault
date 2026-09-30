@@ -28,13 +28,15 @@ class SpendingTrendsChart extends ConsumerWidget {
                   color: context.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Spending Trends',
-                  style: context.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Spending Trends',
+                    style: context.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 Text(
                   'Last 6 Months',
                   style: context.textTheme.bodySmall?.copyWith(
@@ -55,19 +57,19 @@ class SpendingTrendsChart extends ConsumerWidget {
                 return Column(
                   children: [
                     // Legend
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 16,
+                      runSpacing: 8,
                       children: [
                         _LegendItem(
                           color: Colors.green,
                           label: 'Income',
                         ),
-                        const SizedBox(width: 16),
                         _LegendItem(
                           color: Colors.red,
                           label: 'Expense',
                         ),
-                        const SizedBox(width: 16),
                         _LegendItem(
                           color: Colors.blue,
                           label: 'Net',
@@ -77,8 +79,9 @@ class SpendingTrendsChart extends ConsumerWidget {
                     const SizedBox(height: 24),
 
                     // Line Chart
+                    // Width follows the card; taller where there's room.
                     SizedBox(
-                      height: 200,
+                      height: context.isMobile || context.isCompactHeight ? 200 : 260,
                       child: LineChart(
                         _buildLineChartData(context, stats),
                       ),
@@ -93,9 +96,19 @@ class SpendingTrendsChart extends ConsumerWidget {
               error: (error, _) => SizedBox(
                 height: 200,
                 child: Center(
-                  child: Text(
-                    'Failed to load trends',
-                    style: TextStyle(color: context.colorScheme.error),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Failed to load trends',
+                        style: TextStyle(color: context.colorScheme.error),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => ref.invalidate(last6MonthsStatsProvider),
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Retry'),
+                      ),
+                    ],
                   ),
                 ),
               ),

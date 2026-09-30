@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/list_dialog.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../domain/enums/category_type.dart';
 import '../../data/models/category_model.dart';
@@ -25,7 +25,7 @@ class CategoriesModal extends ConsumerStatefulWidget {
 class _CategoriesModalState extends ConsumerState<CategoriesModal>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _hasCategories = false;
+  bool _isSeeding = false;
 
   @override
   void initState() {
@@ -39,215 +39,120 @@ class _CategoriesModalState extends ConsumerState<CategoriesModal>
     super.dispose();
   }
 
+  Future<void> _seedDefaults() async {
+    setState(() => _isSeeding = true);
+    final failure = await ref
+        .read(categoriesNotifierProvider.notifier)
+        .seedDefaultCategories();
+    if (!mounted) return;
+    setState(() => _isSeeding = false);
+
+    if (failure == null) {
+      ref.invalidate(categoriesNotifierProvider);
+      context.showSuccessSnackBar('Default categories loaded successfully');
+    } else {
+      context.showErrorSnackBar(failure.message);
+    }
+  }
+
+  void _showAddCategory() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => const AddCategoryModal(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final categoriesState = ref.watch(categoriesNotifierProvider);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final hasCategories = categoriesState.maybeWhen(
+      loaded: (categories) => categories.isNotEmpty,
+      orElse: () => false,
+    );
 
-    // Responsive sizing
-    final bool isMobile = screenWidth < 600;
-    final bool isTablet = screenWidth >= 600 && screenWidth < 1024;
-    final bool isDesktop = screenWidth >= 1024;
+    return ListDialog(
+      title: 'All Categories',
+      body: categoriesState.when(
+        initial: () => const LoadingIndicator(),
+        loading: () => const LoadingIndicator(),
+        error: (failure) => ErrorView(
+          message: failure.message,
+          onRetry: () => ref.read(categoriesNotifierProvider.notifier).refresh(),
+        ),
+        loaded: (categories) {
+          if (categories.isEmpty) {
+            return SingleChildScrollView(
+              child: EmptyState(
+                title: 'No Categories Yet',
+                message: 'Load default categories to get started',
+                iconData: Icons.category_outlined,
+              ),
+            );
+          }
 
-    final double dialogWidth = isMobile
-        ? screenWidth * 0.95
-        : isTablet
-            ? screenWidth * 0.85
-            : screenWidth * 0.7;
-
-    final double dialogHeight = isMobile
-        ? screenHeight * 0.9
-        : isTablet
-            ? screenHeight * 0.85
-            : screenHeight * 0.8;
-
-    return AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+          return Column(
             children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 24,
-                color: context.colorScheme.primary,
+              TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(text: 'Income'),
+                  Tab(text: 'Expense'),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                AppConfig.appName,
-                style: context.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.colorScheme.primary,
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCategoryList(
+                      context,
+                      categories.where((c) => c.type == CategoryType.income).toList(),
+                    ),
+                    _buildCategoryList(
+                      context,
+                      categories.where((c) => c.type == CategoryType.expense).toList(),
+                    ),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-                tooltip: 'Close',
               ),
             ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppConfig.appTagline,
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text(
-            'All Categories',
-            style: context.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: dialogWidth,
-        height: dialogHeight,
-        child: Column(
-          children: [
-            // Tabs
-            TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(text: 'Income'),
-                Tab(text: 'Expense'),
-              ],
-            ),
-            // Categories List
-            Expanded(
-              child: categoriesState.when(
-                initial: () => const LoadingIndicator(),
-                loading: () => const LoadingIndicator(),
-                error: (failure) => ErrorView(
-                  message: failure.message,
-                  onRetry: () => ref.read(categoriesNotifierProvider.notifier).refresh(),
-                ),
-                loaded: (categories) {
-                  setState(() {
-                    _hasCategories = categories.isNotEmpty;
-                  });
-                  
-                  if (categories.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.category_outlined,
-                            size: 64,
-                            color: context.colorScheme.outline,
-                          ),
-                          AppSpacing.gapMD,
-                          Text(
-                            'No Categories Yet',
-                            style: context.textTheme.titleMedium,
-                          ),
-                          AppSpacing.gapSM,
-                          Text(
-                            'Load default categories to get started',
-                            style: context.textTheme.bodyMedium?.copyWith(
-                              color: context.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          AppSpacing.gapXL,
-                          FilledButton.icon(
-                            onPressed: () async {
-                              final failure = await ref
-                                  .read(categoriesNotifierProvider.notifier)
-                                  .seedDefaultCategories();
-
-                              if (failure == null && context.mounted) {
-                                ref.invalidate(categoriesNotifierProvider);
-                                context.showSuccessSnackBar('Default categories loaded successfully');
-                              } else if (context.mounted) {
-                                context.showErrorSnackBar(failure?.message);
-                              }
-                            },
-                            icon: const Icon(Icons.auto_awesome),
-                            label: const Text('Load Default Categories'),
-                          ),
-                          AppSpacing.gapMD,
-                          TextButton.icon(
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (context) => const AddCategoryModal(),
-                              );
-                            },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Custom Category'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildCategoryList(
-                        context,
-                        categories.where((c) => c.type == CategoryType.income).toList(),
-                      ),
-                      _buildCategoryList(
-                        context,
-                        categories.where((c) => c.type == CategoryType.expense).toList(),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
       actions: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if (_hasCategories)
-              FilledButton.icon(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const AddCategoryModal(),
-                  );
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Add Category'),
-              ),
-          ],
-        ),
+        if (hasCategories)
+          FilledButton.icon(
+            onPressed: _showAddCategory,
+            icon: const Icon(Icons.add),
+            label: const Text('Add Category'),
+          )
+        else if (categoriesState.maybeWhen(loaded: (_) => true, orElse: () => false)) ...[
+          TextButton.icon(
+            onPressed: _isSeeding ? null : _showAddCategory,
+            icon: const Icon(Icons.add),
+            label: const Text('Add Custom Category'),
+          ),
+          FilledButton.icon(
+            onPressed: _isSeeding ? null : _seedDefaults,
+            icon: _isSeeding
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome),
+            label: Text(_isSeeding ? 'Loading...' : 'Load Default Categories'),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildCategoryList(BuildContext context, List<CategoryModel> categories) {
     if (categories.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.category_outlined,
-              size: 64,
-              color: context.colorScheme.outline,
-            ),
-            AppSpacing.gapMD,
-            Text(
-              'No categories found',
-              style: context.textTheme.titleMedium,
-            ),
-          ],
+      return const SingleChildScrollView(
+        child: EmptyState(
+          title: 'No categories found',
+          iconData: Icons.category_outlined,
         ),
       );
     }

@@ -55,71 +55,90 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.colorScheme.surface,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // App Logo
-                Image.asset(
-                  'eazyvault_logo.png',
-                  width: 200,
-                  height: 200,
-                ),
-                AppSpacing.gapXL,
-                // App Name
-                Text(
-                  AppConfig.appName,
-                  style: context.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: context.colorScheme.primary,
+      backgroundColor: context.theme.scaffoldBackgroundColor,
+      // Logo sizes follow the current viewport so the splash fits in
+      // landscape phones; scrolling is the fallback for very short screens.
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final logoSize =
+              (constraints.biggest.shortestSide * 0.3).clamp(64.0, 200.0);
+          final compact = constraints.maxHeight < 600;
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // App Logo
+                        Image.asset(
+                          'eazyvault_logo.png',
+                          width: logoSize,
+                          height: logoSize,
+                        ),
+                        compact ? AppSpacing.gapMD : AppSpacing.gapXL,
+                        // App Name
+                        Text(
+                          AppConfig.appName,
+                          style: context.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: context.colorScheme.primary,
+                          ),
+                        ),
+                        AppSpacing.gapSM,
+                        // App Tagline
+                        Text(
+                          AppConfig.appTagline,
+                          style: context.textTheme.bodyMedium?.copyWith(
+                            color:
+                                context.colorScheme.onSurface.withOpacity(0.6),
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        compact ? AppSpacing.gapLG : AppSpacing.gapXXL,
+                        // AVAIL404 Logo
+                        Image.asset(
+                          'avail404.png',
+                          width: logoSize,
+                          height: logoSize,
+                        ),
+                        AppSpacing.gapMD,
+                        // Powered By Text
+                        Text(
+                          'Powered By',
+                          style: context.textTheme.bodySmall?.copyWith(
+                            color:
+                                context.colorScheme.onSurface.withOpacity(0.5),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        Text(
+                          'AVAIL404 Private Limited',
+                          style: context.textTheme.bodySmall?.copyWith(
+                            color:
+                                context.colorScheme.onSurface.withOpacity(0.5),
+                            fontStyle: FontStyle.italic,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        compact ? AppSpacing.gapLG : AppSpacing.gapXXL,
+                        // Loading Indicator
+                        const CircularProgressIndicator(
+                          semanticsLabel: 'Loading',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                AppSpacing.gapSM,
-                // App Tagline
-                Text(
-                  AppConfig.appTagline,
-                  style: context.textTheme.bodyMedium?.copyWith(
-                    color: context.colorScheme.onSurface.withOpacity(0.6),
-                    fontStyle: FontStyle.italic,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                AppSpacing.gapXXL,
-                // AVAIL404 Logo
-                Image.asset(
-                  'avail404.png',
-                  width: 200,
-                  height: 200,
-                ),
-                AppSpacing.gapMD,
-                // Powered By Text
-                Text(
-                  'Powered By',
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: context.colorScheme.onSurface.withOpacity(0.5),
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-                Text(
-                  'AVAIL404 Private Limited',
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: context.colorScheme.onSurface.withOpacity(0.5),
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                AppSpacing.gapXXL,
-                // Loading Indicator
-                const CircularProgressIndicator(),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

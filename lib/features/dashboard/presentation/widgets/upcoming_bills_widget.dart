@@ -30,10 +30,13 @@ class UpcomingBillsWidget extends ConsumerWidget {
                   color: context.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Upcoming Bills',
-                  style: context.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Upcoming Bills',
+                    style: context.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -175,6 +178,8 @@ class _BillItem extends StatelessWidget {
               children: [
                 Text(
                   loanMetadata.partyName ?? 'Unknown',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: context.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -188,8 +193,10 @@ class _BillItem extends StatelessWidget {
                       color: context.colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 4),
-                    Text(
+                    Flexible(
+                      child: Text(
                       _getDueDateText(),
+                      overflow: TextOverflow.ellipsis,
                       style: context.textTheme.bodySmall?.copyWith(
                         color: isOverdue
                             ? Colors.red
@@ -199,12 +206,14 @@ class _BillItem extends StatelessWidget {
                         fontWeight: isOverdue ? FontWeight.bold : null,
                       ),
                     ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
 
+          const SizedBox(width: 8),
           // Amount
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,

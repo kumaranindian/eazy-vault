@@ -5,6 +5,7 @@ import '../enums/transaction_type.dart';
 import '../extensions/transaction_extensions.dart';
 import '../models/loan_metadata.dart';
 import 'account_balance_service.dart';
+import '../../../../core/utils/error_messages.dart';
 
 /// Category id stored on transfer transactions (not a real category document).
 const String transferCategoryId = 'transfer';
@@ -67,7 +68,7 @@ class TransferService {
     } catch (e, stackTrace) {
       LoggerService.error('Transfer error', error: e, stackTrace: stackTrace);
       if (e is AppException) rethrow;
-      throw ServerException('Failed to create transfer: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'create transfer'));
     }
   }
 

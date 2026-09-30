@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
@@ -12,6 +11,9 @@ import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/models/category_model.dart';
 import '../../domain/enums/category_type.dart';
 import '../providers/categories_notifier.dart';
+import '../../../../core/widgets/branded_dialog_title.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class AddCategoryModal extends ConsumerStatefulWidget {
   const AddCategoryModal({super.key});
@@ -30,6 +32,7 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
   String _selectedIcon = '💸';
   bool _isActive = true;
   bool _isLoading = false;
+  bool _savingAnother = false;
 
   @override
   void dispose() {
@@ -46,12 +49,15 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
     final user = ref.read(currentUserProvider);
     if (user == null) {
       if (mounted) {
-        context.showErrorSnackBar('User not authenticated');
+        context.showErrorSnackBar(ErrorMessages.sessionExpired);
       }
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _savingAnother = addAnother;
+    });
 
     final now = DateTime.now();
 
@@ -121,57 +127,35 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
     }
   }
 
+  /// Local duplicate check against the already-loaded list, so the user
+  /// sees it next to the field instead of after a round trip.
+  String? _duplicateNameError(String? value) {
+    final name = value?.trim().toLowerCase() ?? '';
+    final existing = ref.read(categoriesNotifierProvider).maybeWhen<List<CategoryModel>>(
+      loaded: (items) => items,
+      orElse: () => <CategoryModel>[],
+    );
+    final taken = existing.any(
+      (e) => e.name.trim().toLowerCase() == name && e.type == _selectedType,
+    );
+    return taken ? 'A category with this name already exists' : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 24,
-                color: context.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppConfig.appName,
-                style: context.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.colorScheme.primary,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-                tooltip: 'Close',
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppConfig.appTagline,
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text(
-            'Add Category',
-            style: context.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+      title: BrandedDialogTitle(
+        title: const Text('Add Category'),
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close),
+            tooltip: 'Close',
           ),
         ],
       ),
       content: SizedBox(
-        width: 500,
+        width: Breakpoints.formMaxWidth,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -184,7 +168,8 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
                   label: 'Category Name',
                   hint: 'e.g., Food & Dining',
                   prefixIcon: const Icon(Icons.category_outlined),
-                  validator: (value) => Validators.name(value, fieldName: 'Category name'),
+                  validator: (value) =>
+                      Validators.name(value, fieldName: 'Category name') ?? _duplicateNameError(value),
                   enabled: !_isLoading,
                   textCapitalization: TextCapitalization.words,
                 ),
@@ -241,7 +226,7 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
                               ),
                             ),
                             AppSpacing.gapSM,
-                            const Text('Color'),
+                            const Flexible(child: Text('Color', overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       ),
@@ -255,7 +240,7 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
                           children: [
                             Text(_selectedIcon, style: const TextStyle(fontSize: 24)),
                             AppSpacing.gapSM,
-                            const Text('Icon'),
+                            const Flexible(child: Text('Icon', overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       ),
@@ -282,18 +267,31 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
           children: [
             FilledButton.icon(
               onPressed: _isLoading ? null : () => _handleSave(addAnother: true),
-              icon: const Icon(Icons.add),
-              label: const Text('Save and Add Another'),
+              icon: _isLoading && _savingAnother ? const _Spinner() : const Icon(Icons.add),
+              label: Text(_isLoading && _savingAnother ? 'Saving...' : 'Save and Add Another'),
             ),
             AppSpacing.gapSM,
             FilledButton.icon(
               onPressed: _isLoading ? null : () => _handleSave(),
-              icon: const Icon(Icons.save),
-              label: const Text('Save'),
+              icon: _isLoading && !_savingAnother ? const _Spinner() : const Icon(Icons.save),
+              label: Text(_isLoading && !_savingAnother ? 'Saving...' : 'Save'),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _Spinner extends StatelessWidget {
+  const _Spinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 16,
+      height: 16,
+      child: CircularProgressIndicator(strokeWidth: 2),
     );
   }
 }

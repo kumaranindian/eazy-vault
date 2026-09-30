@@ -12,6 +12,11 @@ import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/models/category_model.dart';
 import '../../domain/enums/category_type.dart';
 import '../providers/categories_notifier.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/responsive_layout.dart';
 
 class AddEditCategoryPage extends ConsumerStatefulWidget {
   const AddEditCategoryPage({
@@ -35,6 +40,9 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
   String _selectedIcon = '💸';
   bool _isActive = true;
   bool _isLoading = false;
+  // Edit mode: why the stored record couldn't be loaded.
+  bool _savingAnother = false;
+  String? _fetchError;
   CategoryModel? _existingCategory;
 
   @override
@@ -46,18 +54,34 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
   }
 
   Future<void> _loadCategory() async {
-    final category = await ref.read(categoryProvider(widget.categoryId!).future);
-    if (category != null && mounted) {
-      setState(() {
-        _existingCategory = category;
-        _nameController.text = category.name;
-        _descriptionController.text = category.description ?? '';
-        _selectedType = category.type;
-        _selectedColor = category.color;
-        _selectedIcon = category.icon;
-        _isActive = category.isActive;
-      });
+    // Retry path only; on the first load (from initState) there's no error.
+    if (_fetchError != null) setState(() => _fetchError = null);
+    final CategoryModel? category;
+    try {
+      category = await ref.read(categoryProvider(widget.categoryId!).future);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fetchError = ErrorMessages.from(e, action: 'load this category');
+        });
+      }
+      return;
     }
+    if (!mounted) return;
+    if (category == null) {
+      setState(() => _fetchError = 'This category no longer exists.');
+      return;
+    }
+    final loaded = category;
+    setState(() {
+      _existingCategory = loaded;
+      _nameController.text = loaded.name;
+      _descriptionController.text = loaded.description ?? '';
+      _selectedType = loaded.type;
+      _selectedColor = loaded.color;
+      _selectedIcon = loaded.icon;
+      _isActive = loaded.isActive;
+    });
   }
 
   @override
@@ -75,12 +99,15 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
     final user = ref.read(currentUserProvider);
     if (user == null) {
       if (mounted) {
-        context.showErrorSnackBar('User not authenticated');
+        context.showErrorSnackBar(ErrorMessages.sessionExpired);
       }
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _savingAnother = addAnother;
+    });
 
     final now = DateTime.now();
 
@@ -158,12 +185,21 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
   @override
   Widget build(BuildContext context) {
     final isEditing = _existingCategory != null;
+    final isEditRoute = widget.categoryId != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Category' : 'Add Category'),
+        title: Text(isEditRoute ? 'Edit Category' : 'Add Category'),
       ),
-      body: Form(
+      // In edit mode never show the blank "add" form: saving it would create
+      // a new category instead of updating the existing one.
+      body: _fetchError != null
+          ? ErrorView(message: _fetchError!, onRetry: _loadCategory)
+          : isEditRoute && !isEditing
+              ? const LoadingIndicator()
+              : ResponsiveContent(
+        maxWidth: Breakpoints.formMaxWidth,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: AppSpacing.paddingMD,
@@ -230,7 +266,7 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
                           ),
                         ),
                         AppSpacing.gapSM,
-                        const Text('Color'),
+                        const Flexible(child: Text('Color', overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ),
@@ -244,7 +280,7 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
                       children: [
                         Text(_selectedIcon, style: const TextStyle(fontSize: 24)),
                         AppSpacing.gapSM,
-                        const Text('Icon'),
+                        const Flexible(child: Text('Icon', overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ),
@@ -291,49 +327,36 @@ class _AddEditCategoryPageState extends ConsumerState<AddEditCategoryPage> {
               ),
             ],
             AppSpacing.gapXL,
-            if (!isEditing) ...[
-              Row(
+            if (!isEditing)
+              // Side by side on wide screens, stacked on phones.
+              OverflowBar(
+                spacing: AppSpacing.md,
+                overflowSpacing: AppSpacing.sm,
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : () => _handleSave(addAnother: true),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save and Add Another'),
-                    ),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : () => _handleSave(addAnother: true),
+                    child: _isLoading && _savingAnother
+                        ? const ButtonProgress(label: 'Saving...')
+                        : const Text('Save and Add Another'),
                   ),
-                  AppSpacing.gapMD,
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : () => _handleSave(),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save'),
-                    ),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : () => _handleSave(),
+                    child: _isLoading && !_savingAnother
+                        ? const ButtonProgress(label: 'Saving...')
+                        : const Text('Save'),
                   ),
                 ],
-              ),
-            ] else
+              )
+            else
               ElevatedButton(
                 onPressed: _isLoading ? null : () => _handleSave(),
                 child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const ButtonProgress(label: 'Saving...')
                     : const Text('Update Category'),
               ),
           ],
         ),
+      ),
       ),
     );
   }
