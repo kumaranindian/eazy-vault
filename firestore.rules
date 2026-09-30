@@ -77,6 +77,15 @@ service cloud.firestore {
         allow update: if isOwner(userId);
         allow delete: if false;
       }
+
+      // Recurring transactions subcollection
+      match /recurringTransactions/{ruleId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                        request.resource.data.createdBy == request.auth.uid;
+        allow update: if isOwner(userId);
+        allow delete: if false;
+      }
     }
     
     // Deny all other access

@@ -34,6 +34,8 @@ import '../widgets/spending_trends_chart.dart';
 import '../widgets/category_breakdown_chart.dart';
 import '../widgets/budgets_summary_card.dart';
 import '../../../budgets/presentation/widgets/budgets_modal.dart';
+import '../../../recurring_transactions/presentation/providers/recurring_catch_up_provider.dart';
+import '../../../recurring_transactions/presentation/widgets/recurring_transactions_modal.dart';
 import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
@@ -48,6 +50,20 @@ class DashboardPage extends ConsumerWidget {
     final accountsState = ref.watch(accountsNotifierProvider);
     final currentUser = ref.watch(currentUserProvider);
     final accountFinancialsAsync = ref.watch(accountFinancialsProvider);
+
+    // Runs once per session: generates any transactions due recurring rules
+    // owe, then tells the user how many were added.
+    ref.listen<AsyncValue<int>>(recurringTransactionsCatchUpProvider, (previous, next) {
+      next.whenOrNull(
+        data: (generatedCount) {
+          if (generatedCount > 0) {
+            context.showSuccessSnackBar(
+              '$generatedCount recurring transaction${generatedCount > 1 ? 's' : ''} added',
+            );
+          }
+        },
+      );
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -327,6 +343,21 @@ class DashboardPage extends ConsumerWidget {
                               ),
                             ],
                           ),
+                          AppSpacing.gapMD,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: QuickActionButton(
+                                  label: 'Recurring',
+                                  icon: Icons.repeat,
+                                  color: Colors.indigo,
+                                  onTap: () => _showRecurringModal(context),
+                                ),
+                              ),
+                              AppSpacing.gapMD,
+                              const Expanded(child: SizedBox()),
+                            ],
+                          ),
                           AppSpacing.gapXL,
                           // Loans Summary Card
                           const LoansSummaryCard(),
@@ -529,6 +560,13 @@ class DashboardPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => const BudgetsModal(),
+    );
+  }
+
+  void _showRecurringModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const RecurringTransactionsModal(),
     );
   }
 
