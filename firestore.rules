@@ -63,7 +63,16 @@ service cloud.firestore {
       // Transactions subcollection
       match /transactions/{transactionId} {
         allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && 
+        allow create: if isOwner(userId) &&
+                        request.resource.data.createdBy == request.auth.uid;
+        allow update: if isOwner(userId);
+        allow delete: if false;
+      }
+
+      // Budgets subcollection
+      match /budgets/{budgetId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
                         request.resource.data.createdBy == request.auth.uid;
         allow update: if isOwner(userId);
         allow delete: if false;

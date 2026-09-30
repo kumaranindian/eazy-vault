@@ -32,6 +32,8 @@ import '../widgets/loans_summary_card.dart';
 import '../widgets/upcoming_bills_widget.dart';
 import '../widgets/spending_trends_chart.dart';
 import '../widgets/category_breakdown_chart.dart';
+import '../widgets/budgets_summary_card.dart';
+import '../../../budgets/presentation/widgets/budgets_modal.dart';
 import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
@@ -315,12 +317,22 @@ class DashboardPage extends ConsumerWidget {
                                 ),
                               ),
                               AppSpacing.gapMD,
-                              const Expanded(child: SizedBox()),
+                              Expanded(
+                                child: QuickActionButton(
+                                  label: 'Budgets',
+                                  icon: Icons.savings_outlined,
+                                  color: Colors.teal,
+                                  onTap: () => _showBudgetsModal(context),
+                                ),
+                              ),
                             ],
                           ),
                           AppSpacing.gapXL,
                           // Loans Summary Card
                           const LoansSummaryCard(),
+                          AppSpacing.gapXL,
+                          // Budgets Summary Card
+                          const BudgetsSummaryCard(),
                           AppSpacing.gapXL,
                           // Upcoming Bills Widget
                           const UpcomingBillsWidget(),
@@ -510,6 +522,13 @@ class DashboardPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => const CategoriesModal(),
+    );
+  }
+
+  void _showBudgetsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const BudgetsModal(),
     );
   }
 

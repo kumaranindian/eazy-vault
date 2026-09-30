@@ -5,6 +5,7 @@ class AppConstants {
   static const String accountsCollection = 'accounts';
   static const String categoriesCollection = 'categories';
   static const String transactionsCollection = 'transactions';
+  static const String budgetsCollection = 'budgets';
 
   static const String profileDocument = 'profile';
   static const String settingsDocument = 'settings';
