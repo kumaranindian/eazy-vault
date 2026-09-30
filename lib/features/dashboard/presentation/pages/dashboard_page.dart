@@ -31,6 +31,7 @@ import '../widgets/account_balances_card.dart';
 import '../widgets/loans_summary_card.dart';
 import '../widgets/upcoming_bills_widget.dart';
 import '../widgets/spending_trends_chart.dart';
+import '../widgets/category_breakdown_chart.dart';
 import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
@@ -326,6 +327,9 @@ class DashboardPage extends ConsumerWidget {
                           AppSpacing.gapXL,
                           // Spending Trends Chart
                           const SpendingTrendsChart(),
+                          AppSpacing.gapXL,
+                          // Category Breakdown Chart
+                          const CategoryBreakdownChart(),
                           AppSpacing.gapXL,
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

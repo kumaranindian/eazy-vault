@@ -56,10 +56,24 @@ Future<MonthlyStats> currentMonthStats(CurrentMonthStatsRef ref) async {
 
 @riverpod
 Future<Map<String, double>> categoryExpenses(CategoryExpensesRef ref) async {
-  // TODO: Implement category-wise expense breakdown when needed
-  await Future.delayed(const Duration(milliseconds: 500));
-  
-  return {};
+  final user = ref.watch(currentUserProvider);
+  if (user == null) {
+    return {};
+  }
+
+  final now = DateTime.now();
+  final startOfMonth = DateTime(now.year, now.month, 1);
+  final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+  final repository = ref.watch(transactionsRepositoryProvider);
+
+  final result = await repository.getExpenseTotalsByCategory(
+    user.uid,
+    startDate: startOfMonth,
+    endDate: endOfMonth,
+  );
+
+  return result.totals;
 }
 
 @riverpod
