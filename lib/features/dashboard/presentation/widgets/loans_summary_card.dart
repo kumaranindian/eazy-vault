@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../transactions/data/models/transaction_model.dart';
+import '../../../transactions/domain/enums/transaction_type.dart';
 import '../../../transactions/presentation/providers/loan_providers.dart';
+import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
+import '../../../transactions/presentation/widgets/transaction_card.dart';
+import '../../../transactions/presentation/widgets/transaction_detail_modal.dart';
 
 class LoansSummaryCard extends ConsumerWidget {
   const LoansSummaryCard({super.key});
@@ -38,8 +43,14 @@ class LoansSummaryCard extends ConsumerWidget {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.arrow_forward),
-                  onPressed: () {
-                    // TODO: Navigate to loans page
+                  onPressed: () async {
+                    final loans = await ref.read(activeLoansProvider.future);
+                    if (!context.mounted) return;
+                    _showLoansList(
+                      context,
+                      'Active loans',
+                      [...loans.loansGiven, ...loans.loansTaken],
+                    );
                   },
                   tooltip: 'View all loans',
                 ),
@@ -73,9 +84,8 @@ class LoansSummaryCard extends ConsumerWidget {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {
-                          // TODO: Show overdue loans
-                        },
+                        onPressed: () =>
+                            _showLoansList(context, 'Overdue loans', overdueLoans),
                         child: const Text('View'),
                       ),
                     ],
@@ -145,9 +155,8 @@ class LoansSummaryCard extends ConsumerWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Show loan given form
-                    },
+                    onPressed: () =>
+                        _showLoanForm(context, TransactionType.loanGiven),
                     icon: const Icon(Icons.arrow_upward, size: 16),
                     label: const Text('Lend'),
                     style: OutlinedButton.styleFrom(
@@ -158,9 +167,8 @@ class LoansSummaryCard extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Show loan taken form
-                    },
+                    onPressed: () =>
+                        _showLoanForm(context, TransactionType.loanTaken),
                     icon: const Icon(Icons.arrow_downward, size: 16),
                     label: const Text('Borrow'),
                     style: OutlinedButton.styleFrom(
@@ -172,6 +180,65 @@ class LoansSummaryCard extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLoanForm(BuildContext context, TransactionType loanType) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: LoanTransactionForm(
+              loanType: loanType,
+              onSuccess: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLoansList(
+    BuildContext context,
+    String title,
+    List<TransactionModel> loans,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: 500,
+          child: loans.isEmpty
+              ? const Text('No loans to show.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: loans.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, index) => TransactionCard(
+                    transaction: loans[index],
+                    onTap: () {
+                      Navigator.of(dialogContext).pop();
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => TransactionDetailModal(
+                          transactionId: loans[index].id,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }

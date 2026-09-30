@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/adaptive_form_dialog.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/models/account_model.dart';
@@ -77,13 +77,13 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
       createdBy: user.uid,
     );
 
-    final success = await ref.read(accountsNotifierProvider.notifier).createAccount(account);
+    final failure = await ref.read(accountsNotifierProvider.notifier).createAccount(account);
 
     if (!mounted) return;
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (failure == null) {
       context.showSuccessSnackBar('Account created successfully');
       ref.invalidate(accountsNotifierProvider);
       
@@ -102,10 +102,7 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
         Navigator.of(context).pop();
       }
     } else {
-      final accountsState = ref.read(accountsNotifierProvider);
-      accountsState.whenOrNull(
-        error: (failure) => context.showErrorSnackBar(failure.message),
-      );
+      context.showErrorSnackBar(failure.message);
     }
   }
 
@@ -133,58 +130,13 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 24,
-                color: context.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppConfig.appName,
-                style: context.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.colorScheme.primary,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-                tooltip: 'Close',
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppConfig.appTagline,
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text(
-            'Add Account',
-            style: context.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: 500,
-        child: Form(
+    return AdaptiveFormDialog(
+      title: 'Add Account',
+      isLoading: _isLoading,
+      content: Form(
           key: _formKey,
           child: SingleChildScrollView(
+            padding: AppSpacing.paddingMD,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,7 +256,6 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
             ),
           ),
         ),
-      ),
       actions: [
         Column(
           mainAxisSize: MainAxisSize.min,

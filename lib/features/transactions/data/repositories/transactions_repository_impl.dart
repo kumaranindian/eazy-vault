@@ -47,8 +47,6 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.serverError(e.message));
     } on NetworkException catch (e) {
       return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.networkError(e.message));
-    } catch (e) {
-      return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.unknownError(e.toString()));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
       return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.unknownError(e.toString()));
@@ -81,14 +79,15 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     TransactionModel transaction,
   ) async {
     try {
-      final createdTransaction = await _remoteDataSource.createTransaction(
+      final createdTransaction = await _balanceService.createTransaction(
         userId,
         transaction,
       );
 
-      await _balanceService.updateBalanceForNewTransaction(userId, createdTransaction);
-
       return (transaction: createdTransaction, failure: null);
+    } on NotFoundException catch (e) {
+      LoggerService.error('Not found error', error: e);
+      return (transaction: null, failure: Failure.notFoundError(e.message));
     } on ValidationException catch (e) {
       LoggerService.error('Validation error', error: e);
       return (transaction: null, failure: Failure.validationError(e.message));
@@ -105,23 +104,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   Future<({TransactionModel? transaction, Failure? failure})> updateTransaction(
     String userId,
     TransactionModel transaction,
-    TransactionModel? oldTransaction,
   ) async {
     try {
-      final updatedTransaction = await _remoteDataSource.updateTransaction(
+      final updatedTransaction = await _balanceService.updateTransaction(
         userId,
         transaction,
       );
 
-      if (oldTransaction != null) {
-        await _balanceService.updateBalanceForUpdatedTransaction(
-          userId,
-          oldTransaction,
-          updatedTransaction,
-        );
-      }
-
       return (transaction: updatedTransaction, failure: null);
+    } on NotFoundException catch (e) {
+      LoggerService.error('Not found error', error: e);
+      return (transaction: null, failure: Failure.notFoundError(e.message));
     } on ValidationException catch (e) {
       LoggerService.error('Validation error', error: e);
       return (transaction: null, failure: Failure.validationError(e.message));
@@ -141,11 +134,15 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     TransactionModel transaction,
   ) async {
     try {
-      await _remoteDataSource.deleteTransaction(userId, transactionId);
-
-      await _balanceService.revertBalanceForDeletedTransaction(userId, transaction);
+      await _balanceService.deleteTransaction(userId, transactionId);
 
       return null;
+    } on NotFoundException catch (e) {
+      LoggerService.error('Not found error', error: e);
+      return Failure.notFoundError(e.message);
+    } on ValidationException catch (e) {
+      LoggerService.error('Validation error', error: e);
+      return Failure.validationError(e.message);
     } on ServerException catch (e) {
       LoggerService.error('Server error', error: e);
       return Failure.serverError(e.message);
@@ -207,6 +204,56 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
       return (totals: <String, ({double income, double expense})>{}, failure: Failure.unknownError(e.toString()));
+    }
+  }
+
+  @override
+  Future<({Map<String, double> totals, Failure? failure})> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final totals = await _remoteDataSource.getExpenseTotalsByCategory(
+        userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      return (totals: totals, failure: null);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return (totals: <String, double>{}, failure: Failure.serverError(e.message));
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return (totals: <String, double>{}, failure: Failure.unknownError(e.toString()));
+    }
+  }
+
+  @override
+  Future<({Map<DateTime, ({double income, double expense})> totals, Failure? failure})> getMonthlyTotals(
+    String userId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final totals = await _remoteDataSource.getMonthlyTotals(
+        userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      return (totals: totals, failure: null);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return (
+        totals: <DateTime, ({double income, double expense})>{},
+        failure: Failure.serverError(e.message),
+      );
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return (
+        totals: <DateTime, ({double income, double expense})>{},
+        failure: Failure.unknownError(e.toString()),
+      );
     }
   }
 }

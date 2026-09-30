@@ -29,6 +29,24 @@ extension TransactionModelExtensions on TransactionModel {
     }
   }
 
+  /// Signed effect on the user's money, for summaries: positive for money in
+  /// (income, loan taken), negative for money out (expense, loan given), zero
+  /// for transfers between the user's own accounts. A repayment's direction
+  /// depends on its linked loan, which isn't available here, so it counts 0.
+  double get cashFlow {
+    switch (type) {
+      case TransactionType.income:
+      case TransactionType.loanTaken:
+        return amount;
+      case TransactionType.expense:
+      case TransactionType.loanGiven:
+        return -amount;
+      case TransactionType.transfer:
+      case TransactionType.loanRepayment:
+        return 0;
+    }
+  }
+
   // Get display title for transaction
   String get displayTitle {
     if (isTransfer && transferMetadata != null) {

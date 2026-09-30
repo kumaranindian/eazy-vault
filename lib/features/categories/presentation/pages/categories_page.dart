@@ -63,17 +63,14 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
             ],
             onSelected: (value) async {
               if (value == 'seed') {
-                final success = await ref
+                final failure = await ref
                     .read(categoriesNotifierProvider.notifier)
                     .seedDefaultCategories();
 
-                if (success && context.mounted) {
+                if (failure == null && context.mounted) {
                   context.showSuccessSnackBar('Default categories loaded successfully');
                 } else if (context.mounted) {
-                  final state = ref.read(categoriesNotifierProvider);
-                  state.whenOrNull(
-                    error: (failure) => context.showErrorSnackBar(failure.message),
-                  );
+                  context.showErrorSnackBar(failure?.message);
                 }
               }
             },
@@ -102,11 +99,11 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
                   'Load default categories or create your own to organize transactions',
               iconData: Icons.category_outlined,
               action: () async {
-                final success = await ref
+                final failure = await ref
                     .read(categoriesNotifierProvider.notifier)
                     .seedDefaultCategories();
 
-                if (success && context.mounted) {
+                if (failure == null && context.mounted) {
                   context.showSuccessSnackBar('Default categories loaded');
                 }
               },
@@ -158,7 +155,7 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
           return CategoryCard(
             category: category,
             onTap: () => context.push(
-              RouteConstants.categoryDetail.replaceAll(':id', category.id),
+              RouteConstants.editCategory.replaceAll(':id', category.id),
             ),
           );
         },

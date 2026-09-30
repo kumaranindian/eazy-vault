@@ -24,7 +24,10 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
   @override
   void initState() {
     super.initState();
-    
+
+    // Chain onto the handler installed in main.dart (logging, and crash
+    // reporting where supported) instead of replacing it.
+    final previousOnError = FlutterError.onError;
     FlutterError.onError = (details) {
       // Ignore RenderFlex overflow errors in debug mode (they're just visual warnings)
       final errorString = details.exception.toString();
@@ -37,12 +40,16 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
         return;
       }
       
-      LoggerService.error(
-        'Flutter Error',
-        error: details.exception,
-        stackTrace: details.stack,
-      );
-      
+      if (previousOnError != null) {
+        previousOnError(details);
+      } else {
+        LoggerService.error(
+          'Flutter Error',
+          error: details.exception,
+          stackTrace: details.stack,
+        );
+      }
+
       // Schedule setState for next frame to avoid build conflicts
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {

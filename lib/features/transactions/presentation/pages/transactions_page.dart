@@ -8,10 +8,13 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../data/models/transaction_model.dart';
+import '../../domain/extensions/transaction_extensions.dart';
 import '../providers/transactions_notifier.dart';
 import '../widgets/empty_transactions_state.dart';
 import '../widgets/transaction_card.dart';
 import '../widgets/transaction_list_header.dart';
+import '../widgets/transactions_modal.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
   const TransactionsPage({super.key});
@@ -46,11 +49,13 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     }
   }
 
-  Map<String, List<dynamic>> _groupTransactionsByDate(List transactions) {
-    final Map<String, List<dynamic>> grouped = {};
-    
+  Map<String, List<TransactionModel>> _groupTransactionsByDate(
+    List<TransactionModel> transactions,
+  ) {
+    final grouped = <String, List<TransactionModel>>{};
+
     for (final transaction in transactions) {
-      final date = transaction.date as DateTime;
+      final date = transaction.date;
       final dateKey = _getDateKey(date);
       
       if (!grouped.containsKey(dateKey)) {
@@ -77,6 +82,40 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     }
   }
 
+  Future<void> _showSearchDialog() async {
+    final notifier = ref.read(transactionsNotifierProvider.notifier);
+    final controller = TextEditingController(text: notifier.searchQuery);
+    final query = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Search transactions'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Description, vendor or amount',
+            prefixIcon: Icon(Icons.search),
+          ),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(''),
+            child: const Text('Clear'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('Search'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (query != null && mounted) {
+      notifier.searchTransactions(query);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final transactionsState = ref.watch(transactionsNotifierProvider);
@@ -87,18 +126,17 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement search
-              context.showInfoSnackBar('Search - Coming Soon');
-            },
+            onPressed: _showSearchDialog,
             tooltip: 'Search',
           ),
           IconButton(
             icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              // TODO: Implement filters
-              context.showInfoSnackBar('Filters - Coming Soon');
-            },
+            // The transactions modal holds the filter controls and applies
+            // them to the same list this page shows.
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => const TransactionsModal(),
+            ),
             tooltip: 'Filter',
           ),
         ],
@@ -140,7 +178,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                 final dayTransactions = groupedTransactions[dateKey]!;
                 final dayTotal = dayTransactions.fold<double>(
                   0,
-                  (sum, t) => sum + (t.isIncome ? t.amount : -t.amount),
+                  (sum, t) => sum + t.cashFlow,
                 );
 
                 return Column(
@@ -163,23 +201,19 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                                 .replaceAll(':id', transaction.id),
                           ),
                           onDelete: () async {
-                            final success = await ref
+                            final failure = await ref
                                 .read(transactionsNotifierProvider.notifier)
                                 .deleteTransaction(
                                   transaction.id,
                                   transaction,
                                 );
 
-                            if (success && context.mounted) {
+                            if (failure == null && context.mounted) {
                               context.showSuccessSnackBar(
                                 'Transaction deleted successfully',
                               );
                             } else if (context.mounted) {
-                              final state = ref.read(transactionsNotifierProvider);
-                              state.whenOrNull(
-                                error: (failure) =>
-                                    context.showErrorSnackBar(failure.message),
-                              );
+                              context.showErrorSnackBar(failure?.message);
                             }
                           },
                         ),
@@ -217,7 +251,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
               final dayTransactions = groupedTransactions[dateKey]!;
               final dayTotal = dayTransactions.fold<double>(
                 0,
-                (sum, t) => sum + (t.isIncome ? t.amount : -t.amount),
+                (sum, t) => sum + t.cashFlow,
               );
 
               return Column(
@@ -240,17 +274,19 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                               .replaceAll(':id', transaction.id),
                         ),
                         onDelete: () async {
-                          final success = await ref
+                          final failure = await ref
                               .read(transactionsNotifierProvider.notifier)
                               .deleteTransaction(
                                 transaction.id,
                                 transaction,
                               );
 
-                          if (success && context.mounted) {
+                          if (failure == null && context.mounted) {
                             context.showSuccessSnackBar(
                               'Transaction deleted successfully',
                             );
+                          } else if (context.mounted) {
+                            context.showErrorSnackBar(failure?.message);
                           }
                         },
                       ),

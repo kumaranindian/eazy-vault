@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../features/authentication/presentation/providers/auth_notifier.dart';
 import '../../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../config/app_config.dart';
-import '../../constants/app_constants.dart';
 import '../../constants/app_spacing.dart';
 
 class NavigationRailSidebar extends ConsumerWidget {
@@ -21,13 +20,6 @@ class NavigationRailSidebar extends ConsumerWidget {
   final ValueChanged<int> onDestinationSelected;
   final bool extended;
 
-  static const List<String> _routes = [
-    RouteConstants.dashboard,
-    RouteConstants.transactions,
-    RouteConstants.accounts,
-    RouteConstants.categories,
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -36,10 +28,7 @@ class NavigationRailSidebar extends ConsumerWidget {
     return NavigationRail(
       extended: extended,
       selectedIndex: selectedIndex,
-      onDestinationSelected: (index) {
-        onDestinationSelected(index);
-        context.go(_routes[index]);
-      },
+      onDestinationSelected: onDestinationSelected,
       leading: extended
           ? Padding(
               padding: AppSpacing.paddingMD,

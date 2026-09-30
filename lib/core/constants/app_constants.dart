@@ -5,6 +5,8 @@ class AppConstants {
   static const String accountsCollection = 'accounts';
   static const String categoriesCollection = 'categories';
   static const String transactionsCollection = 'transactions';
+  static const String budgetsCollection = 'budgets';
+  static const String recurringTransactionsCollection = 'recurringTransactions';
 
   static const String profileDocument = 'profile';
   static const String settingsDocument = 'settings';
@@ -35,7 +37,6 @@ class RouteConstants {
   static const String editAccount = '/accounts/:id/edit';
 
   static const String categories = '/categories';
-  static const String categoryDetail = '/categories/:id';
   static const String addCategory = '/categories/add';
   static const String editCategory = '/categories/:id/edit';
 

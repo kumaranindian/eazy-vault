@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../config/app_config.dart';
-import '../constants/app_constants.dart';
 import '../constants/app_spacing.dart';
 import '../extensions/context_extensions.dart';
-import '../../features/authentication/presentation/providers/auth_providers.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -45,19 +42,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _controller.forward();
 
-    // Navigate to appropriate screen after animation
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        final authState = ref.read(authStateChangesProvider);
-        final isAuthenticated = authState.value != null;
-        
-        if (isAuthenticated) {
-          context.go(RouteConstants.dashboard);
-        } else {
-          context.go(RouteConstants.login);
-        }
-      }
-    });
+    // Navigation away from the splash screen is done by the router's
+    // redirect as soon as the Firebase auth state is known.
   }
 
   @override

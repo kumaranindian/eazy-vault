@@ -21,18 +21,6 @@ abstract class TransactionsRemoteDataSource {
 
   Future<TransactionModel> getTransaction(String userId, String transactionId);
   
-  Future<TransactionModel> createTransaction(
-    String userId,
-    TransactionModel transaction,
-  );
-  
-  Future<TransactionModel> updateTransaction(
-    String userId,
-    TransactionModel transaction,
-  );
-  
-  Future<void> deleteTransaction(String userId, String transactionId);
-  
   Stream<List<TransactionModel>> watchTransactions(
     String userId, {
     TransactionType? type,
@@ -50,6 +38,23 @@ abstract class TransactionsRemoteDataSource {
     String userId, {
     DateTime? startDate,
     DateTime? endDate,
+  });
+
+  /// Expense totals per category id for transactions dated in
+  /// [startDate]..[endDate]. Income and transfer/loan transactions (which use
+  /// the sentinel `'transfer'`/`'loan'` category ids) are excluded.
+  Future<Map<String, double>> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  });
+
+  /// Income/expense totals per calendar month (keyed by the first day of the
+  /// month, local time) for transactions dated in [startDate]..[endDate].
+  Future<Map<DateTime, ({double income, double expense})>> getMonthlyTotals(
+    String userId, {
+    required DateTime startDate,
+    required DateTime endDate,
   });
 }
 
@@ -149,66 +154,6 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
       LoggerService.error('Get transaction error', error: e, stackTrace: stackTrace);
       if (e is NotFoundException) rethrow;
       throw ServerException('Failed to fetch transaction: ${e.toString()}');
-    }
-  }
-
-  @override
-  Future<TransactionModel> createTransaction(
-    String userId,
-    TransactionModel transaction,
-  ) async {
-    try {
-      LoggerService.info('Creating transaction: ${transaction.type.name}');
-
-      final docRef = _transactionsCollection(userId).doc();
-      final transactionWithId = transaction.copyWith(id: docRef.id);
-
-      await docRef.set(transactionWithId.toFirestore());
-
-      LoggerService.info('Transaction created: ${docRef.id}');
-      return transactionWithId;
-    } catch (e, stackTrace) {
-      LoggerService.error('Create transaction error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to create transaction: ${e.toString()}');
-    }
-  }
-
-  @override
-  Future<TransactionModel> updateTransaction(
-    String userId,
-    TransactionModel transaction,
-  ) async {
-    try {
-      LoggerService.info('Updating transaction: ${transaction.id}');
-
-      final updatedTransaction = transaction.copyWith(updatedAt: DateTime.now());
-
-      await _transactionsCollection(userId)
-          .doc(transaction.id)
-          .update(updatedTransaction.toFirestore());
-
-      LoggerService.info('Transaction updated: ${transaction.id}');
-      return updatedTransaction;
-    } catch (e, stackTrace) {
-      LoggerService.error('Update transaction error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to update transaction: ${e.toString()}');
-    }
-  }
-
-  @override
-  Future<void> deleteTransaction(String userId, String transactionId) async {
-    try {
-      LoggerService.info('Deleting transaction: $transactionId');
-
-      await _transactionsCollection(userId).doc(transactionId).update({
-        AppConstants.isDeletedField: true,
-        AppConstants.updatedAtField: Timestamp.now(),
-      });
-
-      LoggerService.info('Transaction deleted: $transactionId');
-    } catch (e, stackTrace) {
-      LoggerService.error('Delete transaction error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to delete transaction: ${e.toString()}');
     }
   }
 
@@ -326,6 +271,85 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get totals by account error', error: e, stackTrace: stackTrace);
       throw ServerException('Failed to calculate totals by account: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Map<String, double>> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      LoggerService.info('Calculating expense totals by category');
+
+      Query<Map<String, dynamic>> query = _transactionsCollection(userId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('type', isEqualTo: TransactionType.expense.name);
+
+      if (startDate != null) {
+        query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      }
+
+      if (endDate != null) {
+        query = query.where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+      }
+
+      final querySnapshot = await query.get();
+
+      final categoryTotals = <String, double>{};
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final categoryId = data['categoryId'] as String?;
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+
+        if (categoryId != null) {
+          categoryTotals[categoryId] = (categoryTotals[categoryId] ?? 0) + amount;
+        }
+      }
+
+      LoggerService.info('Calculated expense totals for ${categoryTotals.length} categories');
+      return categoryTotals;
+    } catch (e, stackTrace) {
+      LoggerService.error('Get expense totals by category error', error: e, stackTrace: stackTrace);
+      throw ServerException('Failed to calculate expense totals by category: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Map<DateTime, ({double income, double expense})>> getMonthlyTotals(
+    String userId, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final querySnapshot = await _transactionsCollection(userId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+          .get();
+
+      final totals = <DateTime, ({double income, double expense})>{};
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final type = data['type'] as String?;
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+        final date = (data['date'] as Timestamp?)?.toDate();
+        if (date == null) continue;
+
+        final month = DateTime(date.year, date.month);
+        final current = totals[month] ?? (income: 0.0, expense: 0.0);
+        if (type == TransactionType.income.name) {
+          totals[month] = (income: current.income + amount, expense: current.expense);
+        } else if (type == TransactionType.expense.name) {
+          totals[month] = (income: current.income, expense: current.expense + amount);
+        }
+      }
+      return totals;
+    } catch (e, stackTrace) {
+      LoggerService.error('Get monthly totals error', error: e, stackTrace: stackTrace);
+      throw ServerException('Failed to calculate monthly totals: ${e.toString()}');
     }
   }
 }

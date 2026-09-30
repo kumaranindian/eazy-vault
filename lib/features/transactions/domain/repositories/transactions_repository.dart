@@ -26,10 +26,11 @@ abstract class TransactionsRepository {
     TransactionModel transaction,
   );
 
+  /// Updates an income/expense transaction. The stored version is used to
+  /// compute the balance change; transfers and loans can't be edited.
   Future<({TransactionModel? transaction, Failure? failure})> updateTransaction(
     String userId,
     TransactionModel transaction,
-    TransactionModel? oldTransaction,
   );
 
   Future<Failure?> deleteTransaction(
@@ -55,5 +56,17 @@ abstract class TransactionsRepository {
     String userId, {
     DateTime? startDate,
     DateTime? endDate,
+  });
+
+  Future<({Map<String, double> totals, Failure? failure})> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  });
+
+  Future<({Map<DateTime, ({double income, double expense})> totals, Failure? failure})> getMonthlyTotals(
+    String userId, {
+    required DateTime startDate,
+    required DateTime endDate,
   });
 }

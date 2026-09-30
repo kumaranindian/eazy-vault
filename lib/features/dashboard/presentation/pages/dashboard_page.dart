@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
@@ -13,6 +14,7 @@ import '../../../authentication/presentation/providers/auth_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../categories/presentation/widgets/categories_modal.dart';
 import '../../../transactions/data/models/transaction_model.dart';
+import '../../../transactions/presentation/providers/financial_refresh.dart';
 import '../../../transactions/presentation/providers/transactions_notifier.dart';
 import '../../../transactions/presentation/widgets/transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_detail_modal.dart';
@@ -29,6 +31,11 @@ import '../widgets/account_balances_card.dart';
 import '../widgets/loans_summary_card.dart';
 import '../widgets/upcoming_bills_widget.dart';
 import '../widgets/spending_trends_chart.dart';
+import '../widgets/category_breakdown_chart.dart';
+import '../widgets/budgets_summary_card.dart';
+import '../../../budgets/presentation/widgets/budgets_modal.dart';
+import '../../../recurring_transactions/presentation/providers/recurring_catch_up_provider.dart';
+import '../../../recurring_transactions/presentation/widgets/recurring_transactions_modal.dart';
 import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
@@ -43,6 +50,20 @@ class DashboardPage extends ConsumerWidget {
     final accountsState = ref.watch(accountsNotifierProvider);
     final currentUser = ref.watch(currentUserProvider);
     final accountFinancialsAsync = ref.watch(accountFinancialsProvider);
+
+    // Runs once per session: generates any transactions due recurring rules
+    // owe, then tells the user how many were added.
+    ref.listen<AsyncValue<int>>(recurringTransactionsCatchUpProvider, (previous, next) {
+      next.whenOrNull(
+        data: (generatedCount) {
+          if (generatedCount > 0) {
+            context.showSuccessSnackBar(
+              '$generatedCount recurring transaction${generatedCount > 1 ? 's' : ''} added',
+            );
+          }
+        },
+      );
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -119,8 +140,8 @@ class DashboardPage extends ConsumerWidget {
               );
 
               if (confirmed == true && context.mounted) {
-                final success = await ref.read(authNotifierProvider.notifier).signOut();
-                if (success && context.mounted) {
+                final failure = await ref.read(authNotifierProvider.notifier).signOut();
+                if (failure == null && context.mounted) {
                   context.showSuccessSnackBar('Logged out successfully');
                 }
               }
@@ -134,9 +155,9 @@ class DashboardPage extends ConsumerWidget {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                ref.invalidate(currentMonthStatsProvider);
-                ref.invalidate(totalBalanceProvider);
-                ref.invalidate(accountFinancialsProvider);
+                // Reloads account balances too (totalBalance and the account
+                // chart are derived from the accounts list).
+                refreshFinancialData(ref.invalidate);
               },
               child: CustomScrollView(
                 slivers: [
@@ -312,6 +333,28 @@ class DashboardPage extends ConsumerWidget {
                                 ),
                               ),
                               AppSpacing.gapMD,
+                              Expanded(
+                                child: QuickActionButton(
+                                  label: 'Budgets',
+                                  icon: Icons.savings_outlined,
+                                  color: Colors.teal,
+                                  onTap: () => _showBudgetsModal(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                          AppSpacing.gapMD,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: QuickActionButton(
+                                  label: 'Recurring',
+                                  icon: Icons.repeat,
+                                  color: Colors.indigo,
+                                  onTap: () => _showRecurringModal(context),
+                                ),
+                              ),
+                              AppSpacing.gapMD,
                               const Expanded(child: SizedBox()),
                             ],
                           ),
@@ -319,11 +362,17 @@ class DashboardPage extends ConsumerWidget {
                           // Loans Summary Card
                           const LoansSummaryCard(),
                           AppSpacing.gapXL,
+                          // Budgets Summary Card
+                          const BudgetsSummaryCard(),
+                          AppSpacing.gapXL,
                           // Upcoming Bills Widget
                           const UpcomingBillsWidget(),
                           AppSpacing.gapXL,
                           // Spending Trends Chart
                           const SpendingTrendsChart(),
+                          AppSpacing.gapXL,
+                          // Category Breakdown Chart
+                          const CategoryBreakdownChart(),
                           AppSpacing.gapXL,
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -507,6 +556,20 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
+  void _showBudgetsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const BudgetsModal(),
+    );
+  }
+
+  void _showRecurringModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const RecurringTransactionsModal(),
+    );
+  }
+
   void _showTransactionDetailModal(BuildContext context, String transactionId) {
     showDialog(
       context: context,
@@ -539,12 +602,11 @@ class DashboardPage extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      final success = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
-      if (success && context.mounted) {
-        ref.invalidate(currentMonthStatsProvider);
-        ref.invalidate(totalBalanceProvider);
-        ref.invalidate(recentTransactionsProvider);
+      final failure = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
+      if (failure == null && context.mounted) {
         context.showSuccessSnackBar('Transaction deleted successfully');
+      } else if (failure != null && context.mounted) {
+        context.showErrorSnackBar(failure.message);
       }
     }
   }
@@ -556,6 +618,29 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showTransferDialog(BuildContext context) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    if (isMobile) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: const Text('Transfer')),
+            body: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: AppSpacing.paddingMD,
+                child: TransferTransactionForm(
+                  onSuccess: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -575,6 +660,31 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showLoanDialog(BuildContext context, TransactionType loanType) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+    final title = loanType == TransactionType.loanGiven ? 'Lend Money' : 'Borrow Money';
+
+    if (isMobile) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: Text(title)),
+            body: SafeArea(
+              top: false,
+              child: Padding(
+                padding: AppSpacing.paddingMD,
+                child: LoanTransactionForm(
+                  loanType: loanType,
+                  onSuccess: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(

@@ -3,7 +3,9 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 
-typedef FakeFirebaseFirestore = FakeFirebaseFirestore;
+export 'package:fake_cloud_firestore/fake_cloud_firestore.dart'
+    show FakeFirebaseFirestore;
+
 
 class MockFirebase {
   static FakeFirebaseFirestore getFakeFirestore() {
@@ -43,7 +45,7 @@ class MockFirebase {
       'name': 'Cash',
       'type': 'cash',
       'currentBalance': 10000.0,
-      'initialBalance': 10000.0,
+      'openingBalance': 10000.0,
       'color': 0xFF4CAF50,
       'icon': '💵',
       'isActive': true,
@@ -60,9 +62,9 @@ class MockFirebase {
         .doc('account-2')
         .set({
       'name': 'Bank',
-      'type': 'bank',
+      'type': 'savings',
       'currentBalance': 50000.0,
-      'initialBalance': 50000.0,
+      'openingBalance': 50000.0,
       'color': 0xFF2196F3,
       'icon': '🏦',
       'isActive': true,
@@ -81,6 +83,7 @@ class MockFirebase {
         .set({
       'name': 'Food & Dining',
       'type': 'expense',
+      'isDefault': false,
       'color': 0xFFFF5722,
       'icon': '🍔',
       'isActive': true,
@@ -98,6 +101,7 @@ class MockFirebase {
         .set({
       'name': 'Salary',
       'type': 'income',
+      'isDefault': false,
       'color': 0xFF4CAF50,
       'icon': '💰',
       'isActive': true,

@@ -48,88 +48,60 @@ class CategoriesNotifier extends _$CategoriesNotifier {
     }
   }
 
-  Future<bool> createCategory(CategoryModel category) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      state = const CategoriesState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
-    }
-
-    final repository = ref.read(categoriesRepositoryProvider);
-    final result = await repository.createCategory(user.uid, category);
-
-    if (result.failure != null) {
-      state = CategoriesState.error(result.failure!);
-      return false;
-    }
-
-    await _loadCategories();
-    return true;
+  Future<Failure?> createCategory(CategoryModel category) {
+    return _mutate((userId) async {
+      final result = await ref
+          .read(categoriesRepositoryProvider)
+          .createCategory(userId, category);
+      return result.failure;
+    });
   }
 
-  Future<bool> updateCategory(CategoryModel category) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      state = const CategoriesState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
-    }
-
-    final repository = ref.read(categoriesRepositoryProvider);
-    final result = await repository.updateCategory(user.uid, category);
-
-    if (result.failure != null) {
-      state = CategoriesState.error(result.failure!);
-      return false;
-    }
-
-    await _loadCategories();
-    return true;
+  Future<Failure?> updateCategory(CategoryModel category) {
+    return _mutate((userId) async {
+      final result = await ref
+          .read(categoriesRepositoryProvider)
+          .updateCategory(userId, category);
+      return result.failure;
+    });
   }
 
-  Future<bool> deleteCategory(String categoryId) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) {
-      state = const CategoriesState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
-    }
-
-    final repository = ref.read(categoriesRepositoryProvider);
-    final failure = await repository.deleteCategory(user.uid, categoryId);
-
-    if (failure != null) {
-      state = CategoriesState.error(failure);
-      return false;
-    }
-
-    await _loadCategories();
-    return true;
+  Future<Failure?> deleteCategory(String categoryId) {
+    return _mutate((userId) async {
+      return ref
+          .read(categoriesRepositoryProvider)
+          .deleteCategory(userId, categoryId);
+    });
   }
 
-  Future<bool> seedDefaultCategories() async {
+  Future<Failure?> seedDefaultCategories() {
+    return _mutate((userId) async {
+      return ref
+          .read(categoriesRepositoryProvider)
+          .seedDefaultCategories(userId);
+    });
+  }
+
+  /// Runs a write and reloads the list on success. Returns `null` on success,
+  /// otherwise the [Failure]; the list state is left untouched on failure.
+  Future<Failure?> _mutate(
+    Future<Failure?> Function(String userId) operation,
+  ) async {
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      state = const CategoriesState.error(
-        Failure.authenticationError('User not authenticated'),
-      );
-      return false;
+      return const Failure.authenticationError('User not authenticated');
     }
 
-    final repository = ref.read(categoriesRepositoryProvider);
-    final failure = await repository.seedDefaultCategories(user.uid);
+    final link = ref.keepAlive();
+    try {
+      final failure = await operation(user.uid);
+      if (failure != null) return failure;
 
-    if (failure != null) {
-      state = CategoriesState.error(failure);
-      return false;
+      await _loadCategories();
+      return null;
+    } finally {
+      link.close();
     }
-
-    await _loadCategories();
-    return true;
   }
 
   void refresh() {

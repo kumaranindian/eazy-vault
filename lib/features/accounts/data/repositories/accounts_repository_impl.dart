@@ -78,6 +78,9 @@ class AccountsRepositoryImpl implements AccountsRepository {
     try {
       final updatedAccount = await _remoteDataSource.updateAccount(userId, account);
       return (account: updatedAccount, failure: null);
+    } on NotFoundException catch (e) {
+      LoggerService.error('Not found error', error: e);
+      return (account: null, failure: Failure.notFoundError(e.message));
     } on ValidationException catch (e) {
       LoggerService.error('Validation error', error: e);
       return (account: null, failure: Failure.validationError(e.message));
@@ -95,6 +98,9 @@ class AccountsRepositoryImpl implements AccountsRepository {
     try {
       await _remoteDataSource.deleteAccount(userId, accountId);
       return null;
+    } on ValidationException catch (e) {
+      LoggerService.error('Validation error', error: e);
+      return Failure.validationError(e.message);
     } on ServerException catch (e) {
       LoggerService.error('Server error', error: e);
       return Failure.serverError(e.message);

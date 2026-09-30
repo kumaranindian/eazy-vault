@@ -18,7 +18,10 @@ class FirebaseService {
       LoggerService.info('Firebase initialized successfully');
 
       if (!kDebugMode) {
-        await _initializeCrashlytics();
+        // firebase_crashlytics has no web implementation.
+        if (!kIsWeb) {
+          await _initializeCrashlytics();
+        }
         await _initializeAnalytics();
       }
     } catch (e, stackTrace) {
@@ -33,11 +36,16 @@ class FirebaseService {
 
   static Future<void> _initializeCrashlytics() async {
     try {
+      // Chain onto the existing handlers so logging keeps working.
+      final previousFlutterOnError = FlutterError.onError;
       FlutterError.onError = (errorDetails) {
+        previousFlutterOnError?.call(errorDetails);
         FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
       };
 
+      final previousPlatformOnError = PlatformDispatcher.instance.onError;
       PlatformDispatcher.instance.onError = (error, stack) {
+        previousPlatformOnError?.call(error, stack);
         FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
         return true;
       };
