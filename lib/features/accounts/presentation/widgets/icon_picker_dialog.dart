@@ -54,12 +54,14 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Choose Icon'),
+      // Fixed-size swatches: a sensible width on desktop (double.maxFinite
+      // stretched them across the screen) that still shrinks on phones.
       content: SizedBox(
-        width: double.maxFinite,
+        width: 360,
         child: GridView.builder(
           shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 72,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
           ),
@@ -68,7 +70,11 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
             final icon = _icons[index];
             final isSelected = _selectedIcon == icon;
 
-            return InkWell(
+            return Semantics(
+              label: 'Icon $icon',
+              selected: isSelected,
+              button: true,
+              child: InkWell(
               onTap: () => setState(() => _selectedIcon = icon),
               borderRadius: BorderRadius.circular(8),
               child: Container(
@@ -91,6 +97,7 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
                   ),
                 ),
               ),
+            ),
             );
           },
         ),

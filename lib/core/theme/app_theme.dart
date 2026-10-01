@@ -5,6 +5,10 @@ import 'app_colors.dart';
 class AppTheme {
   const AppTheme._();
 
+  // Material's default (40 horizontal) leaves too little room on 320px phones.
+  static const EdgeInsets _dialogInsetPadding =
+      EdgeInsets.symmetric(horizontal: 16, vertical: 24);
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -158,6 +162,7 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
         elevation: 8,
+        insetPadding: _dialogInsetPadding,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -259,11 +264,17 @@ class AppTheme {
         onError: Colors.black,
         surface: AppColors.surfaceDark,
         onSurface: AppColors.textPrimaryDark,
+        onSurfaceVariant: AppColors.textSecondaryDark,
+        surfaceContainerLowest: AppColors.backgroundDark,
+        surfaceContainerLow: AppColors.surfaceDark,
+        surfaceContainer: AppColors.surfaceDark,
+        surfaceContainerHigh: AppColors.surfaceDark,
         surfaceContainerHighest: AppColors.surfaceVariantDark,
         outline: AppColors.borderDark,
         outlineVariant: AppColors.dividerDark,
       ),
       scaffoldBackgroundColor: AppColors.backgroundDark,
+      canvasColor: AppColors.surfaceDark,
       appBarTheme: const AppBarTheme(
         elevation: 0,
         centerTitle: false,
@@ -370,6 +381,50 @@ class AppTheme {
         selectedLabelTextStyle: TextStyle(color: AppColors.primary),
         unselectedLabelTextStyle: TextStyle(color: AppColors.textSecondaryDark),
       ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surfaceDark,
+        modalBackgroundColor: AppColors.surfaceDark,
+        surfaceTintColor: Colors.transparent,
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: AppColors.surfaceVariantDark,
+        surfaceTintColor: Colors.transparent,
+        textStyle: TextStyle(color: AppColors.textPrimaryDark),
+      ),
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: AppColors.surfaceDark,
+        surfaceTintColor: Colors.transparent,
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: AppColors.surfaceDark,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: AppColors.primaryDark,
+      ),
+      datePickerTheme: const DatePickerThemeData(
+        backgroundColor: AppColors.surfaceDark,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: AppColors.surfaceVariantDark,
+        headerForegroundColor: AppColors.textPrimaryDark,
+      ),
+      timePickerTheme: const TimePickerThemeData(
+        backgroundColor: AppColors.surfaceDark,
+      ),
+      dropdownMenuTheme: const DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(AppColors.surfaceVariantDark),
+          surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      tooltipTheme: const TooltipThemeData(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariantDark,
+          borderRadius: BorderRadius.all(Radius.circular(4)),
+        ),
+        textStyle: TextStyle(color: AppColors.textPrimaryDark),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.primary,
+      ),
       dividerTheme: const DividerThemeData(
         color: AppColors.dividerDark,
         thickness: 1,
@@ -395,6 +450,7 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surfaceDark,
         elevation: 8,
+        insetPadding: _dialogInsetPadding,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),

@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/services/logger_service.dart';
 import '../models/user_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 abstract class AuthRemoteDataSource {
   User? get currentUser;
@@ -82,7 +83,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw AuthenticationException(_getAuthErrorMessage(e.code), e.code);
     } catch (e, stackTrace) {
       LoggerService.error('Sign in error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to sign in: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'sign in'));
     }
   }
 
@@ -117,7 +118,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw AuthenticationException(_getAuthErrorMessage(e.code), e.code);
     } catch (e, stackTrace) {
       LoggerService.error('Sign up error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to sign up: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'sign up'));
     }
   }
 
@@ -157,7 +158,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw AuthenticationException(_getAuthErrorMessage(e.code), e.code);
     } catch (e, stackTrace) {
       LoggerService.error('Google sign in error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to sign in with Google: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'sign in with Google'));
     }
   }
 
@@ -174,7 +175,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       LoggerService.info('User signed out successfully');
     } catch (e, stackTrace) {
       LoggerService.error('Sign out error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to sign out: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'sign out'));
     }
   }
 
@@ -191,7 +192,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw AuthenticationException(_getAuthErrorMessage(e.code), e.code);
     } catch (e, stackTrace) {
       LoggerService.error('Password reset error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to send password reset email: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'send password reset email'));
     }
   }
 
@@ -219,7 +220,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw AuthenticationException(_getAuthErrorMessage(e.code), e.code);
     } catch (e, stackTrace) {
       LoggerService.error('Email verification error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to send email verification: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'send email verification'));
     }
   }
 
@@ -235,7 +236,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       await user.reload();
     } catch (e, stackTrace) {
       LoggerService.error('Reload user error', error: e, stackTrace: stackTrace);
-      throw AuthenticationException('Failed to reload user: ${e.toString()}');
+      throw AuthenticationException(ErrorMessages.from(e, action: 'reload user'));
     }
   }
 
@@ -251,7 +252,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       return UserModel.fromFirestore(doc);
     } catch (e, stackTrace) {
       LoggerService.error('Get user data error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to get user data: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load your profile'));
     }
   }
 
@@ -285,7 +286,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       return userModel;
     } catch (e, stackTrace) {
       LoggerService.error('Create user document error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to create user document: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'save your profile'));
     }
   }
 
@@ -295,6 +296,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         return 'No user found with this email address';
       case 'wrong-password':
         return 'Incorrect password';
+      case 'invalid-credential':
+      case 'invalid-login-credentials':
+        return 'Incorrect email or password';
+      case 'popup-closed-by-user':
+      case 'cancelled-popup-request':
+        return 'Sign-in was cancelled';
+      case 'popup-blocked':
+        return 'The sign-in popup was blocked by your browser. Please allow popups and try again';
       case 'email-already-in-use':
         return 'An account already exists with this email';
       case 'invalid-email':

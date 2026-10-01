@@ -5,11 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
-import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/responsive_layout.dart';
+import '../../../../core/widgets/sign_out_button.dart';
+import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../accounts/presentation/widgets/accounts_modal.dart';
-import '../../../authentication/presentation/providers/auth_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../categories/presentation/widgets/categories_modal.dart';
 import '../../../transactions/data/models/transaction_model.dart';
@@ -33,6 +36,7 @@ import '../widgets/spending_trends_chart.dart';
 import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
+import '../../../../core/widgets/form_dialog.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -44,6 +48,7 @@ class DashboardPage extends ConsumerWidget {
     final accountsState = ref.watch(accountsNotifierProvider);
     final currentUser = ref.watch(currentUserProvider);
     final accountFinancialsAsync = ref.watch(accountFinancialsProvider);
+    final isCompactHeight = context.isCompactHeight;
 
     return Scaffold(
       appBar: AppBar(
@@ -59,16 +64,21 @@ class DashboardPage extends ConsumerWidget {
                   color: context.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  AppConfig.appName,
-                  style: context.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Flexible(
+                  child: Text(
+                    AppConfig.appName,
+                    style: context.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             Text(
               AppConfig.appTagline,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: context.textTheme.bodySmall?.copyWith(
                 color: context.colorScheme.onSurface.withOpacity(0.6),
                 fontStyle: FontStyle.italic,
@@ -78,7 +88,8 @@ class DashboardPage extends ConsumerWidget {
           ],
         ),
         actions: [
-          if (currentUser != null)
+          // The user name is hidden on phones so the title keeps its room.
+          if (currentUser != null && !context.isMobile)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Row(
@@ -98,36 +109,7 @@ class DashboardPage extends ConsumerWidget {
                 ],
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirmed == true && context.mounted) {
-                final failure = await ref.read(authNotifierProvider.notifier).signOut();
-                if (failure == null && context.mounted) {
-                  context.showSuccessSnackBar('Logged out successfully');
-                }
-              }
-            },
-            tooltip: 'Logout',
-          ),
+          const SignOutButton(),
         ],
       ),
       body: Column(
@@ -142,16 +124,77 @@ class DashboardPage extends ConsumerWidget {
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(
-                    child: Padding(
+                    child: ResponsiveContent(
                       padding: AppSpacing.paddingMD,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            'Quick Actions',
+                            style: context.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          AppSpacing.gapMD,
+                          // 2 columns on phones, one row on wide screens.
+                          ResponsiveGrid(
+                            minItemWidth: 120,
+                            maxColumns: 7,
+                            children: [
+                              QuickActionButton(
+                                label: 'Add Income',
+                                icon: Icons.add_circle_outline,
+                                color: Colors.green,
+                                onTap: () => _showAddTransactionDialog(
+                                    context, TransactionType.income),
+                              ),
+                              QuickActionButton(
+                                label: 'Add Expense',
+                                icon: Icons.remove_circle_outline,
+                                color: Colors.red,
+                                onTap: () => _showAddTransactionDialog(
+                                    context, TransactionType.expense),
+                              ),
+                              QuickActionButton(
+                                label: 'Transfer',
+                                icon: Icons.swap_horiz,
+                                color: Colors.orange,
+                                onTap: () => _showTransferDialog(context),
+                              ),
+                              QuickActionButton(
+                                label: 'Lend',
+                                icon: Icons.arrow_upward,
+                                color: Colors.teal,
+                                onTap: () => _showLoanDialog(
+                                    context, TransactionType.loanGiven),
+                              ),
+                              QuickActionButton(
+                                label: 'Borrow',
+                                icon: Icons.arrow_downward,
+                                color: Colors.deepOrange,
+                                onTap: () => _showLoanDialog(
+                                    context, TransactionType.loanTaken),
+                              ),
+                              QuickActionButton(
+                                label: 'Accounts',
+                                icon: Icons.account_balance_wallet_outlined,
+                                color: Colors.blue,
+                                onTap: () => _showAccountsModal(context),
+                              ),
+                              QuickActionButton(
+                                label: 'Categories',
+                                icon: Icons.category_outlined,
+                                color: Colors.purple,
+                                onTap: () => _showCategoriesModal(context),
+                              ),
+                            ],
+                          ),
+                          AppSpacing.gapXL,
                           DashboardHeader(
                             totalBalance: totalBalance,
                             accounts: accountsState.maybeWhen(
                               loaded: (accounts) => accounts,
-                              orElse: () => [],
+                              orElse: () => <AccountModel>[],
                             ),
                             totalIncome: monthlyStats.maybeWhen(
                               data: (stats) => stats.income,
@@ -163,7 +206,7 @@ class DashboardPage extends ConsumerWidget {
                             ),
                             accountFinancials: accountFinancialsAsync.maybeWhen(
                               data: (financials) => financials,
-                              orElse: () => {},
+                              orElse: () => <String, AccountFinancials>{},
                             ),
                           ),
                           AppSpacing.gapXL,
@@ -175,303 +218,100 @@ class DashboardPage extends ConsumerWidget {
                           ),
                           AppSpacing.gapMD,
                           monthlyStats.when(
-                            data: (stats) => Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: SummaryCard(
-                                        title: 'Income',
-                                        amount: stats.income,
-                                        icon: Icons.arrow_upward,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                    AppSpacing.gapMD,
-                                    Expanded(
-                                      child: SummaryCard(
-                                        title: 'Expense',
-                                        amount: stats.expense,
-                                        icon: Icons.arrow_downward,
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                AppSpacing.gapMD,
-                                SummaryCard(
-                                  title: 'Net Savings',
-                                  amount: stats.income - stats.expense,
-                                  icon: Icons.savings_outlined,
-                                  color: stats.income - stats.expense >= 0
-                                      ? Colors.blue
-                                      : Colors.orange,
-                                  isFullWidth: true,
-                                ),
-                              ],
+                            data: (stats) => _MonthlySummary(
+                              income: stats.income,
+                              expense: stats.expense,
                             ),
-                            loading: () => const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(32),
-                                child: CircularProgressIndicator(),
-                              ),
+                            loading: () => const Padding(
+                              padding: AppSpacing.paddingXL,
+                              child: LoadingIndicator(size: 32),
                             ),
-                            error: (error, stack) => Center(
-                              child: Padding(
-                                padding: AppSpacing.paddingMD,
-                                child: Text(
-                                  'Failed to load statistics',
-                                  style: context.textTheme.bodyMedium?.copyWith(
-                                    color: context.colorScheme.error,
-                                  ),
-                                ),
-                              ),
+                            error: (error, stack) => _InlineError(
+                              message: 'Failed to load statistics',
+                              onRetry: () =>
+                                  ref.invalidate(currentMonthStatsProvider),
                             ),
                           ),
                           AppSpacing.gapXL,
-                          Text(
-                            'Quick Actions',
-                            style: context.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          AppSpacing.gapMD,
-                          Row(
+                          // Side by side when there's room, stacked otherwise.
+                          const ResponsiveGrid(
+                            minItemWidth: 420,
+                            maxColumns: 2,
+                            spacing: AppSpacing.lg,
+                            runSpacing: AppSpacing.xl,
                             children: [
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Add Income',
-                                  icon: Icons.add_circle_outline,
-                                  color: Colors.green,
-                                  onTap: () => _showAddTransactionDialog(context, TransactionType.income),
-                                ),
-                              ),
-                              AppSpacing.gapMD,
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Add Expense',
-                                  icon: Icons.remove_circle_outline,
-                                  color: Colors.red,
-                                  onTap: () => _showAddTransactionDialog(context, TransactionType.expense),
-                                ),
-                              ),
+                              LoansSummaryCard(),
+                              UpcomingBillsWidget(),
                             ],
                           ),
-                          AppSpacing.gapMD,
-                          Row(
-                            children: [
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Transfer',
-                                  icon: Icons.swap_horiz,
-                                  color: Colors.orange,
-                                  onTap: () => _showTransferDialog(context),
-                                ),
-                              ),
-                              AppSpacing.gapMD,
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Lend',
-                                  icon: Icons.arrow_upward,
-                                  color: Colors.teal,
-                                  onTap: () => _showLoanDialog(context, TransactionType.loanGiven),
-                                ),
-                              ),
-                            ],
-                          ),
-                          AppSpacing.gapMD,
-                          Row(
-                            children: [
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Borrow',
-                                  icon: Icons.arrow_downward,
-                                  color: Colors.deepOrange,
-                                  onTap: () => _showLoanDialog(context, TransactionType.loanTaken),
-                                ),
-                              ),
-                              AppSpacing.gapMD,
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Accounts',
-                                  icon: Icons.account_balance_wallet_outlined,
-                                  color: Colors.blue,
-                                  onTap: () => _showAccountsModal(context),
-                                ),
-                              ),
-                            ],
-                          ),
-                          AppSpacing.gapMD,
-                          Row(
-                            children: [
-                              Expanded(
-                                child: QuickActionButton(
-                                  label: 'Categories',
-                                  icon: Icons.category_outlined,
-                                  color: Colors.purple,
-                                  onTap: () => _showCategoriesModal(context),
-                                ),
-                              ),
-                              AppSpacing.gapMD,
-                              const Expanded(child: SizedBox()),
-                            ],
-                          ),
-                          AppSpacing.gapXL,
-                          // Loans Summary Card
-                          const LoansSummaryCard(),
-                          AppSpacing.gapXL,
-                          // Upcoming Bills Widget
-                          const UpcomingBillsWidget(),
                           AppSpacing.gapXL,
                           // Spending Trends Chart
                           const SpendingTrendsChart(),
                           AppSpacing.gapXL,
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'Recent Transactions',
-                                style: context.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                              Expanded(
+                                child: Text(
+                                  'Recent Transactions',
+                                  style: context.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               TextButton(
                                 onPressed: () {
-                                  showDialog(
+                                  showDialog<void>(
                                     context: context,
-                                    builder: (context) => const TransactionsModal(),
+                                    builder: (context) =>
+                                        const TransactionsModal(),
                                   );
                                 },
                                 child: const Text('View All'),
                               ),
                             ],
                           ),
+                          AppSpacing.gapMD,
+                          _RecentTransactions(
+                            onAdd: () => _showAddTransactionDialog(
+                                context, TransactionType.expense),
+                            onTap: (transaction) => _showTransactionDetailModal(
+                                context, transaction.id),
+                            onDelete: (transaction) =>
+                                _deleteTransaction(context, ref, transaction),
+                            onEdit: (transaction) =>
+                                _editTransaction(context, transaction),
+                          ),
+                          // On short viewports (landscape phones) the footer
+                          // scrolls with the content instead of taking space.
+                          if (isCompactHeight) ...[
+                            AppSpacing.gapXL,
+                            const _PoweredByFooter(),
+                          ],
                         ],
                       ),
                     ),
                   ),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final recentTransactionsStream = ref.watch(
-                        recentTransactionsProvider(limit: 5),
-                      );
-
-                      return recentTransactionsStream.when(
-                        data: (transactions) {
-                          if (transactions.isEmpty) {
-                            return SliverToBoxAdapter(
-                              child: Padding(
-                                padding: AppSpacing.paddingMD,
-                                child: Card(
-                                  child: Padding(
-                                    padding: AppSpacing.paddingLG,
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.receipt_long_outlined,
-                                          size: 48,
-                                          color: context.colorScheme.primary.withOpacity(0.5),
-                                        ),
-                                        AppSpacing.gapMD,
-                                        Text(
-                                          'No Recent Transactions',
-                                          style: context.textTheme.titleMedium,
-                                        ),
-                                        AppSpacing.gapSM,
-                                        Text(
-                                          'Start tracking your finances by adding your first transaction',
-                                          style: context.textTheme.bodySmall?.copyWith(
-                                            color: context.colorScheme.onSurface.withOpacity(0.6),
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                        AppSpacing.gapMD,
-                                        FilledButton.tonal(
-                                          onPressed: () => _showAddTransactionDialog(context, TransactionType.expense),
-                                          child: const Text('Add Transaction'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          return SliverPadding(
-                            padding: AppSpacing.paddingMD,
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final transaction = transactions[index];
-                                  return Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom: index < transactions.length - 1 ? 8 : 0,
-                                    ),
-                                    child: TransactionCard(
-                                      transaction: transaction,
-                                      onTap: () => _showTransactionDetailModal(context, transaction.id),
-                                      onDelete: () => _deleteTransaction(context, ref, transaction),
-                                      onEdit: () => _editTransaction(context, transaction),
-                                    ),
-                                  );
-                                },
-                                childCount: transactions.length,
-                              ),
-                            ),
-                          );
-                        },
-                        loading: () => const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.all(32),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        ),
-                        error: (error, stack) => const SliverToBoxAdapter(
-                          child: SizedBox.shrink(),
-                        ),
-                      );
-                    },
-                  ),
+                  // Keeps the last card clear of the floating action button.
                   const SliverToBoxAdapter(child: SizedBox(height: 80)),
                 ],
               ),
             ),
           ),
-          // Footer - Always visible
-          Container(
-            padding: AppSpacing.paddingMD,
-            decoration: BoxDecoration(
-              color: context.colorScheme.surface,
-              border: Border(
-                top: BorderSide(
-                  color: context.colorScheme.outlineVariant,
+          if (!isCompactHeight)
+            Container(
+              width: double.infinity,
+              padding: AppSpacing.paddingMD,
+              decoration: BoxDecoration(
+                color: context.colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: context.colorScheme.outlineVariant,
+                  ),
                 ),
               ),
+              child: const _PoweredByFooter(),
             ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Powered By',
-                    style: context.textTheme.bodySmall?.copyWith(
-                      color: context.colorScheme.onSurface.withOpacity(0.5),
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                  Text(
-                    'AVAIL404 Private Limited',
-                    style: context.textTheme.bodySmall?.copyWith(
-                      color: context.colorScheme.onSurface.withOpacity(0.5),
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -511,11 +351,13 @@ class DashboardPage extends ConsumerWidget {
   void _showTransactionDetailModal(BuildContext context, String transactionId) {
     showDialog(
       context: context,
-      builder: (context) => TransactionDetailModal(transactionId: transactionId),
+      builder: (context) =>
+          TransactionDetailModal(transactionId: transactionId),
     );
   }
 
-  Future<void> _deleteTransaction(BuildContext context, WidgetRef ref, TransactionModel transaction) async {
+  Future<void> _deleteTransaction(
+      BuildContext context, WidgetRef ref, TransactionModel transaction) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -540,7 +382,9 @@ class DashboardPage extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      final failure = await ref.read(transactionsNotifierProvider.notifier).deleteTransaction(transaction.id, transaction);
+      final failure = await ref
+          .read(transactionsNotifierProvider.notifier)
+          .deleteTransaction(transaction.id, transaction);
       if (failure == null && context.mounted) {
         context.showSuccessSnackBar('Transaction deleted successfully');
       } else if (failure != null && context.mounted) {
@@ -558,17 +402,11 @@ class DashboardPage extends ConsumerWidget {
   void _showTransferDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: TransferTransactionForm(
-              onSuccess: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ),
+      builder: (context) => FormDialog(
+        child: TransferTransactionForm(
+          onSuccess: () {
+            Navigator.of(context).pop();
+          },
         ),
       ),
     );
@@ -577,19 +415,221 @@ class DashboardPage extends ConsumerWidget {
   void _showLoanDialog(BuildContext context, TransactionType loanType) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: LoanTransactionForm(
-              loanType: loanType,
-              onSuccess: () {
-                Navigator.of(context).pop();
-              },
+      builder: (context) => FormDialog(
+        child: LoanTransactionForm(
+          loanType: loanType,
+          onSuccess: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthlySummary extends StatelessWidget {
+  const _MonthlySummary({required this.income, required this.expense});
+
+  final double income;
+  final double expense;
+
+  @override
+  Widget build(BuildContext context) {
+    final net = income - expense;
+    final incomeCard = SummaryCard(
+      title: 'Income',
+      amount: income,
+      icon: Icons.arrow_upward,
+      color: Colors.green,
+    );
+    final expenseCard = SummaryCard(
+      title: 'Expense',
+      amount: expense,
+      icon: Icons.arrow_downward,
+      color: Colors.red,
+    );
+    final netCard = SummaryCard(
+      title: 'Net Savings',
+      amount: net,
+      icon: Icons.savings_outlined,
+      color: net >= 0 ? Colors.blue : Colors.orange,
+      isFullWidth: true,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Three across on tablets/desktops; income + expense over net savings
+        // on phones.
+        if (constraints.maxWidth >= Breakpoints.mobile) {
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: incomeCard),
+                AppSpacing.gapMD,
+                Expanded(child: expenseCard),
+                AppSpacing.gapMD,
+                Expanded(child: netCard),
+              ],
+            ),
+          );
+        }
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: incomeCard),
+                AppSpacing.gapMD,
+                Expanded(child: expenseCard),
+              ],
+            ),
+            AppSpacing.gapMD,
+            SizedBox(width: double.infinity, child: netCard),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RecentTransactions extends ConsumerWidget {
+  const _RecentTransactions({
+    required this.onAdd,
+    required this.onTap,
+    required this.onDelete,
+    required this.onEdit,
+  });
+
+  final VoidCallback onAdd;
+  final void Function(TransactionModel) onTap;
+  final void Function(TransactionModel) onDelete;
+  final void Function(TransactionModel) onEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recentTransactions = ref.watch(recentTransactionsProvider(limit: 5));
+
+    return recentTransactions.when(
+      data: (transactions) {
+        if (transactions.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: AppSpacing.paddingLG,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.receipt_long_outlined,
+                      size: 48,
+                      color: context.colorScheme.primary.withOpacity(0.5),
+                    ),
+                    AppSpacing.gapMD,
+                    Text(
+                      'No Recent Transactions',
+                      style: context.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    AppSpacing.gapSM,
+                    Text(
+                      'Start tracking your finances by adding your first transaction',
+                      style: context.textTheme.bodySmall?.copyWith(
+                        color: context.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    AppSpacing.gapMD,
+                    FilledButton.tonal(
+                      onPressed: onAdd,
+                      child: const Text('Add Transaction'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            for (var i = 0; i < transactions.length; i++)
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: i < transactions.length - 1 ? AppSpacing.sm : 0,
+                ),
+                child: TransactionCard(
+                  transaction: transactions[i],
+                  onTap: () => onTap(transactions[i]),
+                  onDelete: () => onDelete(transactions[i]),
+                  onEdit: () => onEdit(transactions[i]),
+                ),
+              ),
+          ],
+        );
+      },
+      loading: () => const Padding(
+        padding: AppSpacing.paddingXL,
+        child: LoadingIndicator(size: 32),
+      ),
+      error: (error, stack) => _InlineError(
+        message: 'Failed to load recent transactions',
+        onRetry: () => ref.invalidate(recentTransactionsProvider(limit: 5)),
+      ),
+    );
+  }
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: AppSpacing.paddingMD,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: AppSpacing.sm,
+        children: [
+          Text(
+            message,
+            style: context.textTheme.bodyMedium?.copyWith(
+              color: context.colorScheme.error,
             ),
           ),
-        ),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PoweredByFooter extends StatelessWidget {
+  const _PoweredByFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = context.textTheme.bodySmall?.copyWith(
+      color: context.colorScheme.onSurface.withOpacity(0.5),
+      fontStyle: FontStyle.italic,
+    );
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Powered By', style: style),
+          Text(
+            'AVAIL404 Private Limited',
+            style: style?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }

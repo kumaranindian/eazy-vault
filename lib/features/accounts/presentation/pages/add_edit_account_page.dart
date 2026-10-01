@@ -14,6 +14,11 @@ import '../../domain/enums/account_type.dart';
 import '../providers/accounts_notifier.dart';
 import '../widgets/color_picker_dialog.dart';
 import '../widgets/icon_picker_dialog.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/responsive_layout.dart';
 
 class AddEditAccountPage extends ConsumerStatefulWidget {
   const AddEditAccountPage({
@@ -38,6 +43,9 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
   String _selectedIcon = '💰';
   bool _isActive = true;
   bool _isLoading = false;
+  // Edit mode: why the stored record couldn't be loaded.
+  bool _savingAnother = false;
+  String? _fetchError;
   AccountModel? _existingAccount;
 
   @override
@@ -49,19 +57,35 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
   }
 
   Future<void> _loadAccount() async {
-    final account = await ref.read(accountProvider(widget.accountId!).future);
-    if (account != null && mounted) {
-      setState(() {
-        _existingAccount = account;
-        _nameController.text = account.name;
-        _openingBalanceController.text = account.openingBalance.toString();
-        _descriptionController.text = account.description ?? '';
-        _selectedType = account.type;
-        _selectedColor = account.color;
-        _selectedIcon = account.icon;
-        _isActive = account.isActive;
-      });
+    // Retry path only; on the first load (from initState) there's no error.
+    if (_fetchError != null) setState(() => _fetchError = null);
+    final AccountModel? account;
+    try {
+      account = await ref.read(accountProvider(widget.accountId!).future);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fetchError = ErrorMessages.from(e, action: 'load this account');
+        });
+      }
+      return;
     }
+    if (!mounted) return;
+    if (account == null) {
+      setState(() => _fetchError = 'This account no longer exists.');
+      return;
+    }
+    final loaded = account;
+    setState(() {
+      _existingAccount = loaded;
+      _nameController.text = loaded.name;
+      _openingBalanceController.text = loaded.openingBalance.toString();
+      _descriptionController.text = loaded.description ?? '';
+      _selectedType = loaded.type;
+      _selectedColor = loaded.color;
+      _selectedIcon = loaded.icon;
+      _isActive = loaded.isActive;
+    });
   }
 
   @override
@@ -80,12 +104,15 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
     final user = ref.read(currentUserProvider);
     if (user == null) {
       if (mounted) {
-        context.showErrorSnackBar('User not authenticated');
+        context.showErrorSnackBar(ErrorMessages.sessionExpired);
       }
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _savingAnother = addAnother;
+    });
 
     final openingBalance = double.parse(_openingBalanceController.text.trim());
     final now = DateTime.now();
@@ -166,12 +193,21 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
   @override
   Widget build(BuildContext context) {
     final isEditing = _existingAccount != null;
+    final isEditRoute = widget.accountId != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Account' : 'Add Account'),
+        title: Text(isEditRoute ? 'Edit Account' : 'Add Account'),
       ),
-      body: Form(
+      // In edit mode never show the blank "add" form: saving it would create
+      // a new account instead of updating the existing one.
+      body: _fetchError != null
+          ? ErrorView(message: _fetchError!, onRetry: _loadAccount)
+          : isEditRoute && !isEditing
+              ? const LoadingIndicator()
+              : ResponsiveContent(
+        maxWidth: Breakpoints.formMaxWidth,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: AppSpacing.paddingMD,
@@ -260,7 +296,7 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
                           ),
                         ),
                         AppSpacing.gapSM,
-                        const Text('Color'),
+                        const Flexible(child: Text('Color', overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ),
@@ -274,7 +310,7 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
                       children: [
                         Text(_selectedIcon, style: const TextStyle(fontSize: 24)),
                         AppSpacing.gapSM,
-                        const Text('Icon'),
+                        const Flexible(child: Text('Icon', overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ),
@@ -290,49 +326,36 @@ class _AddEditAccountPageState extends ConsumerState<AddEditAccountPage> {
               contentPadding: EdgeInsets.zero,
             ),
             AppSpacing.gapXL,
-            if (!isEditing) ...[
-              Row(
+            if (!isEditing)
+              // Side by side on wide screens, stacked on phones.
+              OverflowBar(
+                spacing: AppSpacing.md,
+                overflowSpacing: AppSpacing.sm,
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : () => _handleSave(addAnother: true),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save and Add Another'),
-                    ),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : () => _handleSave(addAnother: true),
+                    child: _isLoading && _savingAnother
+                        ? const ButtonProgress(label: 'Saving...')
+                        : const Text('Save and Add Another'),
                   ),
-                  AppSpacing.gapMD,
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : () => _handleSave(),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save'),
-                    ),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : () => _handleSave(),
+                    child: _isLoading && !_savingAnother
+                        ? const ButtonProgress(label: 'Saving...')
+                        : const Text('Save'),
                   ),
                 ],
-              ),
-            ] else
+              )
+            else
               ElevatedButton(
                 onPressed: _isLoading ? null : () => _handleSave(),
                 child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const ButtonProgress(label: 'Saving...')
                     : const Text('Update Account'),
               ),
           ],
         ),
+      ),
       ),
     );
   }

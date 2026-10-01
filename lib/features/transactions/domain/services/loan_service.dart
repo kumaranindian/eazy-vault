@@ -7,6 +7,7 @@ import '../../data/models/transaction_model.dart';
 import '../enums/transaction_type.dart';
 import '../models/loan_metadata.dart';
 import 'account_balance_service.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class LoanService {
   LoanService({
@@ -64,7 +65,7 @@ class LoanService {
     } catch (e, stackTrace) {
       LoggerService.error('Get active loans error',
           error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to fetch active loans: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load active loans'));
     }
   }
 
@@ -84,7 +85,7 @@ class LoanService {
     } catch (e, stackTrace) {
       LoggerService.error('Get overdue loans error',
           error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to fetch overdue loans: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load overdue loans'));
     }
   }
 
@@ -115,7 +116,7 @@ class LoanService {
       LoggerService.error('Record repayment error',
           error: e, stackTrace: stackTrace);
       if (e is AppException) rethrow;
-      throw ServerException('Failed to record repayment: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'record repayment'));
     }
   }
 

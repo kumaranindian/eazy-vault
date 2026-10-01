@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../constants/breakpoints.dart';
+import '../theme/app_colors.dart';
+
+const double _snackBarMaxWidth = 480;
 
 extension ContextExtensions on BuildContext {
   ThemeData get theme => Theme.of(this);
@@ -11,7 +14,9 @@ extension ContextExtensions on BuildContext {
 
   MediaQueryData get mediaQuery => MediaQuery.of(this);
 
-  Size get screenSize => mediaQuery.size;
+  // sizeOf only rebuilds on size changes (rotation, resize), not on every
+  // MediaQuery change such as keyboard insets.
+  Size get screenSize => MediaQuery.sizeOf(this);
 
   double get screenWidth => screenSize.width;
 
@@ -31,6 +36,9 @@ extension ContextExtensions on BuildContext {
 
   bool get isTabletOrDesktop => Breakpoints.isTabletOrDesktop(screenWidth);
 
+  /// Short viewport: landscape phone or a phone in desktop-site mode.
+  bool get isCompactHeight => Breakpoints.isCompactHeight(screenHeight);
+
   bool get isDarkMode => theme.brightness == Brightness.dark;
 
   void showSnackBar(
@@ -38,15 +46,30 @@ extension ContextExtensions on BuildContext {
     Duration? duration,
     SnackBarAction? action,
     Color? backgroundColor,
+    Color? foregroundColor,
   }) {
-    ScaffoldMessenger.of(this).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: duration ?? const Duration(seconds: 3),
-        action: action,
-        backgroundColor: backgroundColor,
-      ),
-    );
+    final messenger = ScaffoldMessenger.maybeOf(this);
+    if (messenger == null) return;
+    // Replace instead of queueing, so repeated taps don't leave a backlog.
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: foregroundColor == null
+                ? null
+                : TextStyle(color: foregroundColor),
+          ),
+          duration: duration ?? const Duration(seconds: 3),
+          action: action,
+          backgroundColor: backgroundColor,
+          // Floating snackbars stretch edge to edge; keep them compact on
+          // wide viewports (width requires floating behavior).
+          behavior: SnackBarBehavior.floating,
+          width: isMobile ? null : _snackBarMaxWidth,
+        ),
+      );
   }
 
   void showErrorSnackBar(String? message) {
@@ -54,13 +77,15 @@ extension ContextExtensions on BuildContext {
       message ?? 'An error occurred',
       duration: const Duration(seconds: 5),
       backgroundColor: colorScheme.error,
+      foregroundColor: colorScheme.onError,
     );
   }
 
   void showSuccessSnackBar(String message) {
     showSnackBar(
       message,
-      backgroundColor: Colors.green,
+      backgroundColor: AppColors.success,
+      foregroundColor: colorScheme.onPrimary,
     );
   }
 
@@ -68,6 +93,7 @@ extension ContextExtensions on BuildContext {
     showSnackBar(
       message,
       backgroundColor: colorScheme.primary,
+      foregroundColor: colorScheme.onPrimary,
     );
   }
 

@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
 import '../widgets/auth_layout.dart';
 import '../widgets/google_sign_in_button.dart';
+import '../../../../core/widgets/loading_indicator.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -75,6 +76,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     setState(() => _isLoading = false);
 
     if (success) {
+      context.showSuccessSnackBar('Signed in successfully');
       context.go(RouteConstants.dashboard);
     } else {
       final authState = ref.read(authNotifierProvider);
@@ -128,6 +130,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 ),
+                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
               validator: Validators.password,
@@ -145,6 +148,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 icon: Icon(
                   _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 ),
+                tooltip: _obscureConfirmPassword ? 'Show password' : 'Hide password',
                 onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
               ),
               validator: (value) => Validators.confirmPassword(value, _passwordController.text),
@@ -155,11 +159,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ElevatedButton(
               onPressed: _isLoading ? null : _handleEmailSignUp,
               child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const ButtonProgress(label: 'Creating account...')
                   : const Text('Sign Up'),
             ),
             AppSpacing.gapMD,
@@ -182,8 +182,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               label: 'Sign up with Google',
             ),
             AppSpacing.gapXL,
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   'Already have an account? ',

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/widgets/responsive_layout.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/widgets/recalculate_balances_action.dart';
 import '../../data/models/account_financials.dart';
@@ -35,9 +37,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final isTablet = MediaQuery.of(context).size.width >= 600 && 
-                     MediaQuery.of(context).size.width < 1024;
+    final isMobile = context.isMobile;
 
     return Card(
       elevation: 2,
@@ -57,24 +57,22 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            'Total Balance',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.7),
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
+                          Flexible(
+                            child: Text(
+                              'Total Balance',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          InkWell(
-                            onTap: () => _showFinancialSummary(context),
-                            child: Icon(
-                              Icons.info_outline,
-                              size: 18,
-                              color: theme.colorScheme.onSurface.withOpacity(0.5),
-                            ),
+                          _HeaderIconButton(
+                            icon: Icons.info_outline,
+                            tooltip: 'Financial summary',
+                            onPressed: () => _showFinancialSummary(context),
                           ),
-                          const SizedBox(width: 4),
                           // Rebuilds stored balances from transactions.
                           const SyncBalancesButton(),
                         ],
@@ -83,7 +81,10 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
                               _isBalanceVisible 
                                   ? widget.totalBalance.toCurrency()
                                   : 'XXX,XXX.XX',
@@ -94,20 +95,18 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: -0.5,
                               ),
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          InkWell(
-                            onTap: () {
+                          _HeaderIconButton(
+                            icon: _isBalanceVisible ? Icons.visibility : Icons.visibility_off,
+                            tooltip: _isBalanceVisible ? 'Hide balance' : 'Show balance',
+                            size: 20,
+                            onPressed: () {
                               setState(() {
                                 _isBalanceVisible = !_isBalanceVisible;
                               });
                             },
-                            child: Icon(
-                              _isBalanceVisible ? Icons.visibility : Icons.visibility_off,
-                              size: 20,
-                              color: theme.colorScheme.onSurface.withOpacity(0.5),
-                            ),
                           ),
                         ],
                       ),
@@ -219,30 +218,27 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                 ),
               ),
               const Spacer(),
-              InkWell(
-                onTap: () {
+              _HeaderIconButton(
+                icon: _isAccountBalanceVisible ? Icons.visibility : Icons.visibility_off,
+                tooltip: _isAccountBalanceVisible
+                    ? 'Hide account balances'
+                    : 'Show account balances',
+                onPressed: () {
                   setState(() {
                     _isAccountBalanceVisible = !_isAccountBalanceVisible;
                   });
                 },
-                child: Icon(
-                  _isAccountBalanceVisible ? Icons.visibility : Icons.visibility_off,
-                  size: 18,
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
-                ),
               ),
             ],
           ),
           SizedBox(height: isMobile ? 16 : 20),
-          Wrap(
+          ResponsiveGrid(
+            minItemWidth: 140,
+            maxColumns: 6,
             spacing: isMobile ? 8 : 12,
             runSpacing: isMobile ? 8 : 12,
-            alignment: WrapAlignment.start,
             children: widget.accounts.map((account) {
               return Container(
-                constraints: BoxConstraints(
-                  minWidth: isMobile ? 100 : 120,
-                ),
                 padding: EdgeInsets.symmetric(
                   horizontal: isMobile ? 10 : 14,
                   vertical: isMobile ? 8 : 10,
@@ -272,14 +268,11 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        SizedBox(width: 4),
-                        InkWell(
-                          onTap: () => _showAccountFinancialSummary(context, account),
-                          child: Icon(
-                            Icons.info_outline,
-                            size: isMobile ? 14 : 16,
-                            color: theme.colorScheme.onSurface.withOpacity(0.5),
-                          ),
+                        _HeaderIconButton(
+                          icon: Icons.info_outline,
+                          tooltip: '${account.name} summary',
+                          size: isMobile ? 14 : 16,
+                          onPressed: () => _showAccountFinancialSummary(context, account),
                         ),
                       ],
                     ),
@@ -288,6 +281,8 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                       _isAccountBalanceVisible 
                           ? account.currentBalance.toCurrency()
                           : 'XXX,XXX.XX',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: account.currentBalance >= 0 
@@ -315,6 +310,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -407,6 +403,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -470,7 +467,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                         account.type.displayName,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -541,31 +538,31 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: color,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: color,
+            ),
           ),
+          const SizedBox(width: 12),
+          // Label and value share the row so narrow dialogs wrap instead of
+          // overflowing.
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             value,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -576,6 +573,36 @@ class _DashboardHeaderState extends State<DashboardHeader> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Small icon action with a tooltip (screen readers announce it) and a
+/// compact but still tappable hit area.
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.size = 18,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon),
+      iconSize: size,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(AppSpacing.xs),
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
     );
   }
 }

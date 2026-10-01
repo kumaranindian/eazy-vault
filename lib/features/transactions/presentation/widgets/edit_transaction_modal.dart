@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/models/failure.dart';
+import '../../../../core/services/logger_service.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/branded_dialog_title.dart';
+import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -43,6 +48,7 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
   TransactionModel? _existingTransaction;
+  String? _loadError;
 
   @override
   void initState() {
@@ -51,10 +57,26 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
   }
 
   Future<void> _loadTransaction() async {
-    final transaction =
-        await ref.read(transactionProvider(widget.transactionId).future);
-    if (transaction != null && mounted) {
-      if (!AccountBalanceService.isEditableType(transaction.type)) {
+    TransactionModel? transaction;
+    try {
+      transaction =
+          await ref.read(transactionProvider(widget.transactionId).future);
+    } catch (e, st) {
+      LoggerService.error('Load transaction for edit failed', error: e, stackTrace: st);
+      if (mounted) {
+        setState(() => _loadError = ErrorMessages.from(e, action: 'load the transaction'));
+      }
+      return;
+    }
+    if (transaction == null) {
+      if (mounted) {
+        setState(() => _loadError = 'This transaction no longer exists.');
+      }
+      return;
+    }
+    final loaded = transaction;
+    if (mounted) {
+      if (!AccountBalanceService.isEditableType(loaded.type)) {
         context.showErrorSnackBar(
           'Transfers and loans cannot be edited. Delete and re-create them instead.',
         );
@@ -62,17 +84,17 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
         return;
       }
       setState(() {
-        _existingTransaction = transaction;
-        _selectedType = transaction.type;
-        _amountController.text = transaction.amount.toString();
-        _selectedAccountId = transaction.accountId;
-        _selectedCategoryId = transaction.categoryId;
-        _selectedDate = transaction.date;
-        _descriptionController.text = transaction.description ?? '';
-        _vendorController.text = transaction.vendor ?? '';
-        if (transaction.attachments != null &&
-            transaction.attachments!.isNotEmpty) {
-          _attachmentController.text = transaction.attachments!.first;
+        _existingTransaction = loaded;
+        _selectedType = loaded.type;
+        _amountController.text = loaded.amount.toString();
+        _selectedAccountId = loaded.accountId;
+        _selectedCategoryId = loaded.categoryId;
+        _selectedDate = loaded.date;
+        _descriptionController.text = loaded.description ?? '';
+        _vendorController.text = loaded.vendor ?? '';
+        if (loaded.attachments != null &&
+            loaded.attachments!.isNotEmpty) {
+          _attachmentController.text = loaded.attachments!.first;
         }
       });
     }
@@ -117,9 +139,10 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
 
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      context.showErrorSnackBar('User not authenticated');
+      context.showErrorSnackBar(ErrorMessages.sessionExpired);
       return;
     }
+    if (_existingTransaction == null) return;
 
     setState(() => _isLoading = true);
 
@@ -150,9 +173,17 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
       updatedAt: now,
     );
 
-    final failure = await ref
-        .read(transactionsNotifierProvider.notifier)
-        .updateTransaction(transaction);
+    Failure? failure;
+    try {
+      failure = await ref
+          .read(transactionsNotifierProvider.notifier)
+          .updateTransaction(transaction);
+    } catch (e, st) {
+      LoggerService.error('Update transaction failed', error: e, stackTrace: st);
+      failure = Failure.unknownError(
+        ErrorMessages.from(e, action: 'update the transaction'),
+      );
+    }
 
     if (!mounted) return;
 
@@ -194,56 +225,32 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
       orElse: () => <CategoryModel>[],
     );
 
+    final isReady = _existingTransaction != null;
+
     return AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 24,
-                color: context.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppConfig.appName,
-                style: context.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.colorScheme.primary,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-                tooltip: 'Close',
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppConfig.appTagline,
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text(
-            'Edit Transaction',
-            style: context.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+      title: BrandedDialogTitle(
+        title: const Text('Edit Transaction'),
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close),
+            tooltip: 'Close',
           ),
         ],
       ),
       content: SizedBox(
-        width: 500,
-        child: Form(
+        width: Breakpoints.formMaxWidth,
+        child: _loadError != null
+            ? Text(
+                _loadError!,
+                style: TextStyle(color: context.colorScheme.error),
+              )
+            : !isReady
+                ? const Padding(
+                    padding: AppSpacing.paddingXL,
+                    child: LoadingIndicator(size: 32),
+                  )
+                : Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(
@@ -264,7 +271,9 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                     ),
                   ],
                   selected: {_selectedType},
-                  onSelectionChanged: (Set<TransactionType> newSelection) {
+                  onSelectionChanged: _isLoading
+                      ? null
+                      : (Set<TransactionType> newSelection) {
                     setState(() {
                       _selectedType = newSelection.first;
                       _selectedCategoryId = null;
@@ -287,6 +296,7 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                 ),
                 AppSpacing.gapMD,
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value: _selectedAccountId,
                   decoration: const InputDecoration(
                     labelText: 'Account',
@@ -299,7 +309,12 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                         children: [
                           Text(account.icon),
                           AppSpacing.gapSM,
-                          Text(account.name),
+                          Expanded(
+                            child: Text(
+                              account.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -312,6 +327,7 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                 ),
                 AppSpacing.gapMD,
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value: _selectedCategoryId,
                   decoration: InputDecoration(
                     labelText: 'Category',
@@ -327,7 +343,12 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                         children: [
                           Text(category.icon),
                           AppSpacing.gapSM,
-                          Text(category.name),
+                          Expanded(
+                            child: Text(
+                              category.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -368,12 +389,7 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                   label: 'Vendor (Optional)',
                   hint: 'Where did you spend?',
                   prefixIcon: const Icon(Icons.store_outlined),
-                  validator: (value) {
-                    if (value != null && value.isNotEmpty && value.length > 100) {
-                      return 'Vendor name must be less than 100 characters';
-                    }
-                    return null;
-                  },
+                  validator: (value) => Validators.vendorName(value),
                   enabled: !_isLoading,
                 ),
                 AppSpacing.gapMD,
@@ -407,9 +423,15 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             FilledButton.icon(
-              onPressed: _isLoading ? null : _handleSave,
-              icon: const Icon(Icons.save),
-              label: const Text('Update Transaction'),
+              onPressed: _isLoading || !isReady ? null : _handleSave,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(_isLoading ? 'Saving...' : 'Update Transaction'),
             ),
           ],
         ),

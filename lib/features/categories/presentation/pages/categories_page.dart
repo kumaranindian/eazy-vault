@@ -8,9 +8,12 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/page_header.dart';
+import '../../../../core/widgets/sign_out_button.dart';
 import '../../domain/enums/category_type.dart';
 import '../providers/categories_notifier.dart';
 import '../widgets/category_card.dart';
+import '../../../../core/widgets/responsive_layout.dart';
 
 class CategoriesPage extends ConsumerStatefulWidget {
   const CategoriesPage({super.key});
@@ -22,6 +25,23 @@ class CategoriesPage extends ConsumerStatefulWidget {
 class _CategoriesPageState extends ConsumerState<CategoriesPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isSeeding = false;
+
+  /// Guarded so repeated taps can't seed the defaults twice.
+  Future<void> _seedDefaults() async {
+    if (_isSeeding) return;
+    setState(() => _isSeeding = true);
+    final failure = await ref
+        .read(categoriesNotifierProvider.notifier)
+        .seedDefaultCategories();
+    if (!mounted) return;
+    setState(() => _isSeeding = false);
+    if (failure == null) {
+      context.showSuccessSnackBar('Default categories loaded successfully');
+    } else {
+      context.showErrorSnackBar(failure.message);
+    }
+  }
 
   @override
   void initState() {
@@ -45,10 +65,13 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(categoriesNotifierProvider.notifier).refresh(),
+            onPressed: () =>
+                ref.read(categoriesNotifierProvider.notifier).refresh(),
             tooltip: 'Refresh',
           ),
           PopupMenuButton(
+            tooltip: 'More options',
+            enabled: !_isSeeding,
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: 'seed',
@@ -61,20 +84,11 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
                 ),
               ),
             ],
-            onSelected: (value) async {
-              if (value == 'seed') {
-                final failure = await ref
-                    .read(categoriesNotifierProvider.notifier)
-                    .seedDefaultCategories();
-
-                if (failure == null && context.mounted) {
-                  context.showSuccessSnackBar('Default categories loaded successfully');
-                } else if (context.mounted) {
-                  context.showErrorSnackBar(failure?.message);
-                }
-              }
+            onSelected: (value) {
+              if (value == 'seed') _seedDefaults();
             },
           ),
+          const SignOutButton(),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -84,44 +98,49 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
           ],
         ),
       ),
-      body: categoriesState.when(
-        initial: () => const LoadingIndicator(),
-        loading: () => const LoadingIndicator(),
-        error: (failure) => ErrorView(
-          message: failure.message,
-          onRetry: () => ref.read(categoriesNotifierProvider.notifier).refresh(),
-        ),
-        loaded: (categories) {
-          if (categories.isEmpty) {
-            return EmptyState(
-              title: 'No Categories Yet',
-              message:
-                  'Load default categories or create your own to organize transactions',
-              iconData: Icons.category_outlined,
-              action: () async {
-                final failure = await ref
-                    .read(categoriesNotifierProvider.notifier)
-                    .seedDefaultCategories();
-
-                if (failure == null && context.mounted) {
-                  context.showSuccessSnackBar('Default categories loaded');
+      body: Column(
+        children: [
+          const PageHeader(
+            title: 'Categories',
+            description: 'Organize your income and expenses.',
+          ),
+          Expanded(
+            child: categoriesState.when(
+              initial: () => const LoadingIndicator(),
+              loading: () => const LoadingIndicator(),
+              error: (failure) => ErrorView(
+                message: failure.message,
+                onRetry: () =>
+                    ref.read(categoriesNotifierProvider.notifier).refresh(),
+              ),
+              loaded: (categories) {
+                if (categories.isEmpty) {
+                  if (_isSeeding) return const LoadingIndicator(size: 32);
+                  return EmptyState(
+                    title: 'No Categories Yet',
+                    message:
+                        'Load default categories or create your own to organize transactions',
+                    iconData: Icons.category_outlined,
+                    action: _seedDefaults,
+                    actionLabel: 'Load Defaults',
+                  );
                 }
-              },
-              actionLabel: 'Load Defaults',
-            );
-          }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildCategoryList(CategoryType.income),
-              _buildCategoryList(CategoryType.expense),
-            ],
-          );
-        },
+                return TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCategoryList(CategoryType.income),
+                    _buildCategoryList(CategoryType.expense),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.push(RouteConstants.addCategory),
+        tooltip: 'Add category',
         child: const Icon(Icons.add),
       ),
     );
@@ -146,19 +165,27 @@ class _CategoriesPageState extends ConsumerState<CategoriesPage>
       onRefresh: () async {
         ref.read(categoriesNotifierProvider.notifier).refresh();
       },
-      child: ListView.separated(
-        padding: AppSpacing.paddingMD,
-        itemCount: categories.length,
-        separatorBuilder: (context, index) => AppSpacing.gapSM,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          return CategoryCard(
-            category: category,
-            onTap: () => context.push(
-              RouteConstants.editCategory.replaceAll(':id', category.id),
-            ),
-          );
-        },
+      child: ResponsiveContent(
+        maxWidth: 800,
+        child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            88, // clear of the FAB
+          ),
+          itemCount: categories.length,
+          separatorBuilder: (context, index) => AppSpacing.gapSM,
+          itemBuilder: (context, index) {
+            final category = categories[index];
+            return CategoryCard(
+              category: category,
+              onTap: () => context.push(
+                RouteConstants.editCategory.replaceAll(':id', category.id),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

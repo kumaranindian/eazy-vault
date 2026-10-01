@@ -4,6 +4,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/services/logger_service.dart';
 import '../models/account_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 abstract class AccountsRemoteDataSource {
   Future<List<AccountModel>> getAccounts(String userId);
@@ -45,7 +46,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
       return accounts;
     } catch (e, stackTrace) {
       LoggerService.error('Get accounts error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to fetch accounts: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load accounts'));
     }
   }
 
@@ -69,7 +70,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get account error', error: e, stackTrace: stackTrace);
       if (e is NotFoundException) rethrow;
-      throw ServerException('Failed to fetch account: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load account'));
     }
   }
 
@@ -87,7 +88,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
       return accountWithId;
     } catch (e, stackTrace) {
       LoggerService.error('Create account error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to create account: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'create account'));
     }
   }
 
@@ -145,7 +146,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Update account error', error: e, stackTrace: stackTrace);
       if (e is AppException) rethrow;
-      throw ServerException('Failed to update account: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'update account'));
     }
   }
 
@@ -188,7 +189,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Delete account error', error: e, stackTrace: stackTrace);
       if (e is AppException) rethrow;
-      throw ServerException('Failed to delete account: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'delete account'));
     }
   }
 
@@ -208,7 +209,7 @@ class AccountsRemoteDataSourceImpl implements AccountsRemoteDataSource {
       });
     } catch (e, stackTrace) {
       LoggerService.error('Watch accounts error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to watch accounts: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load accounts'));
     }
   }
 }

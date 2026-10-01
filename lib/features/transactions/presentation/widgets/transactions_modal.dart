@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
+import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/widgets/branded_dialog_title.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/responsive_layout.dart';
+import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../categories/data/models/category_model.dart';
 import '../../../categories/domain/enums/category_type.dart';
@@ -218,430 +224,344 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
     final transactionsState = ref.watch(transactionsNotifierProvider);
     final categoriesState = ref.watch(categoriesNotifierProvider);
     final accountsState = ref.watch(accountsNotifierProvider);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
-    // Responsive sizing
-    final bool isMobile = screenWidth < 600;
-    final bool isTablet = screenWidth >= 600 && screenWidth < 1024;
-    final bool isDesktop = screenWidth >= 1024;
-
-    final double dialogWidth = isMobile
-        ? screenWidth * 0.95
-        : isTablet
-            ? screenWidth * 0.85
-            : screenWidth * 0.7;
-
-    final double dialogHeight = isMobile
-        ? screenHeight * 0.9
-        : isTablet
-            ? screenHeight * 0.85
-            : screenHeight * 0.8;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final isMobile = context.isMobile;
 
     final categories = categoriesState.maybeWhen<List<CategoryModel>>(
       loaded: (cats) => cats.where((c) => c.isActive).toList(),
       orElse: () => <CategoryModel>[],
     );
+    final activeAccounts = accountsState.maybeWhen<List<AccountModel>>(
+      loaded: (accounts) => accounts.where((a) => a.isActive).toList(),
+      orElse: () => <AccountModel>[],
+    );
 
-    return AlertDialog(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+    // Filters and list share one scroll view, so on short viewports
+    // (landscape phones) the filters scroll away instead of squeezing the
+    // list to nothing. The dialog height follows the current viewport and
+    // Dialog clamps it further when the keyboard is open.
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: Breakpoints.listDialogMaxWidth),
+        child: SizedBox(
+          height: screenHeight * 0.9,
+          child: Column(
             children: [
-              Icon(
-                Icons.account_balance_wallet,
-                size: 24,
-                color: context.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppConfig.appName,
-                style: context.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: context.colorScheme.primary,
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isMobile ? AppSpacing.md : AppSpacing.lg,
+                  isMobile ? AppSpacing.md : AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppConfig.appTagline,
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          Text(
-            'All Transactions',
-            style: context.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: dialogWidth,
-        height: dialogHeight,
-        child: Column(
-          children: [
-            // Filters
-            Container(
-              padding: EdgeInsets.all(isMobile ? 12 : 16),
-              decoration: BoxDecoration(
-                color: context.colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: context.colorScheme.outlineVariant,
-                  ),
-                ),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                  // Type Filter
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        Wrap(
-                          spacing: isMobile ? 4 : 8,
-                          runSpacing: isMobile ? 4 : 8,
-                          children: [
-                            ChoiceChip(
-                              label: const Text('All'),
-                              selected: _selectedType == null,
-                              onSelected: (selected) {
-                                if (selected) {
-                                  setState(() {
-                                    _selectedType = null;
-                                    _selectedCategoryId = null;
-                                  });
-                                  _applyFilters();
-                                }
-                              },
-                            ),
-                            ChoiceChip(
-                              label: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.arrow_upward, size: 16),
-                                  SizedBox(width: 4),
-                                  Text('Income'),
-                                ],
-                              ),
-                              selected: _selectedType == TransactionType.income,
-                              onSelected: (selected) {
-                                if (selected) {
-                                  setState(() {
-                                    _selectedType = TransactionType.income;
-                                    _selectedCategoryId = null;
-                                  });
-                                  _applyFilters();
-                                }
-                              },
-                            ),
-                            ChoiceChip(
-                              label: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.arrow_downward, size: 16),
-                                  SizedBox(width: 4),
-                                  Text('Expense'),
-                                ],
-                              ),
-                              selected: _selectedType == TransactionType.expense,
-                              onSelected: (selected) {
-                                if (selected) {
-                                  setState(() {
-                                    _selectedType = TransactionType.expense;
-                                    _selectedCategoryId = null;
-                                  });
-                                  _applyFilters();
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  AppSpacing.gapMD,
-
-                  // Date Filter
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: isMobile ? 200 : 300,
-                          child: DropdownButtonFormField<DateFilter>(
-                            value: _selectedDateFilter,
-                            decoration: const InputDecoration(
-                              labelText: 'Date Range',
-                              prefixIcon: Icon(Icons.calendar_today),
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            items: DateFilter.values.map((filter) {
-                              return DropdownMenuItem(
-                                value: filter,
-                                child: Text(filter.displayName),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value == DateFilter.custom) {
-                                _selectCustomDateRange();
-                              } else {
-                                setState(() => _selectedDateFilter = value!);
-                                _applyFilters();
-                              }
-                            },
-                          ),
-                        ),
-                        if (_selectedDateFilter == DateFilter.custom) ...[
-                          AppSpacing.gapSM,
-                          IconButton(
-                            icon: const Icon(Icons.edit_calendar),
-                            onPressed: _selectCustomDateRange,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  AppSpacing.gapMD,
-
-                  // Account Filter
-                  accountsState.maybeWhen(
-                    loaded: (accounts) {
-                      final activeAccounts = accounts.where((a) => a.isActive).toList();
-                      if (activeAccounts.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: isMobile ? 200 : 300,
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedAccountId,
-                                decoration: const InputDecoration(
-                                  labelText: 'Account',
-                                  prefixIcon: Icon(Icons.account_balance_wallet),
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                ),
-                                items: [
-                                  const DropdownMenuItem(
-                                    value: null,
-                                    child: Text('All Accounts'),
-                                  ),
-                                  ...activeAccounts.map((account) {
-                                    return DropdownMenuItem(
-                                      value: account.id,
-                                      child: Row(
-                                        children: [
-                                          Text(account.icon),
-                                          const SizedBox(width: 8),
-                                          Text(account.name),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                ],
-                                onChanged: (value) {
-                                  setState(() => _selectedAccountId = value);
-                                  _applyFilters();
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                  AppSpacing.gapMD,
-
-                  // Category Filter
-                  if (categories.isNotEmpty)
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: isMobile ? 200 : 300,
-                            child: DropdownButtonFormField<String?>(
-                              value: _selectedCategoryId,
-                              decoration: const InputDecoration(
-                                labelText: 'Category',
-                                prefixIcon: Icon(Icons.category),
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              items: [
-                                const DropdownMenuItem<String?>(
-                                  value: null,
-                                  child: Text('All Categories'),
-                                ),
-                                ...categories
-                                    .where((c) {
-                                      if (_selectedType == null) return true;
-                                      // Convert TransactionType to CategoryType for comparison
-                                      final categoryType = _selectedType == TransactionType.income
-                                          ? CategoryType.income
-                                          : CategoryType.expense;
-                                      return c.type == categoryType;
-                                    })
-                                    .map((category) {
-                                  return DropdownMenuItem<String?>(
-                                    value: category.id,
-                                    child: Row(
-                                      children: [
-                                        Text(category.icon),
-                                        AppSpacing.gapSM,
-                                        Text(category.name),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ],
-                              onChanged: (value) {
-                                setState(() => _selectedCategoryId = value);
-                                _applyFilters();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  AppSpacing.gapMD,
-
-                  // Clear Filters Button
-                  if (_selectedType != null ||
-                      _selectedAccountId != null ||
-                      _selectedCategoryId != null ||
-                      _selectedDateFilter != DateFilter.thisMonth)
-                    TextButton.icon(
-                      onPressed: _clearFilters,
-                      icon: const Icon(Icons.clear_all),
-                      label: const Text('Clear Filters'),
+                child: BrandedDialogTitle(
+                  title: const Text('All Transactions'),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
               ),
-            ),
-
-            // Transactions List
-            Expanded(
-              child: transactionsState.when(
-                initial: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-                error: (failure) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: context.colorScheme.error,
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    // Load the next page when the user nears the end.
+                    final hasMore = transactionsState.maybeWhen(
+                      loaded: (_, hasMore, __) => hasMore,
+                      orElse: () => false,
+                    );
+                    if (hasMore &&
+                        notification.metrics.pixels >=
+                            notification.metrics.maxScrollExtent - 200) {
+                      ref.read(transactionsNotifierProvider.notifier).loadMore();
+                    }
+                    return false;
+                  },
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _buildFilters(context, categories, activeAccounts, isMobile),
                       ),
-                      AppSpacing.gapMD,
-                      Text(
-                        failure.message,
-                        textAlign: TextAlign.center,
-                      ),
-                      AppSpacing.gapMD,
-                      FilledButton.icon(
-                        onPressed: _applyFilters,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                      ),
+                      ..._buildList(context, transactionsState, isMobile),
                     ],
                   ),
                 ),
-                loaded: (transactions, hasMore, _) {
-                  if (transactions.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.receipt_long_outlined,
-                            size: 64,
-                            color: context.colorScheme.outline,
-                          ),
-                          AppSpacing.gapMD,
-                          Text(
-                            'No transactions found',
-                            style: context.textTheme.titleMedium,
-                          ),
-                          AppSpacing.gapSM,
-                          Text(
-                            'Try adjusting your filters',
-                            style: context.textTheme.bodyMedium?.copyWith(
-                              color: context.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: EdgeInsets.all(isMobile ? 8 : 16),
-                    itemCount: transactions.length,
-                    itemBuilder: (context, index) {
-                      final transaction = transactions[index];
-                      return TransactionCard(
-                        transaction: transaction,
-                        onTap: () => _showTransactionDetailModal(context, transaction.id),
-                        onDelete: () => _deleteTransaction(context, ref, transaction),
-                        onEdit: () => _editTransaction(context, transaction),
-                      );
-                    },
-                  );
-                },
-                loadingMore: (transactions, hasMore, _) {
-                  return ListView.builder(
-                    padding: EdgeInsets.all(isMobile ? 8 : 16),
-                    itemCount: transactions.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == transactions.length) {
-                        return const Center(
-                          child: Padding(
-                            padding: AppSpacing.paddingMD,
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-                      final transaction = transactions[index];
-                      return TransactionCard(
-                        transaction: transaction,
-                        onTap: () => _showTransactionDetailModal(context, transaction.id),
-                        onDelete: () => _deleteTransaction(context, ref, transaction),
-                        onEdit: () => _editTransaction(context, transaction),
-                      );
-                    },
-                  );
-                },
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFilters(
+    BuildContext context,
+    List<CategoryModel> categories,
+    List<AccountModel> activeAccounts,
+    bool isMobile,
+  ) {
+    final hasActiveFilters = _selectedType != null ||
+        _selectedAccountId != null ||
+        _selectedCategoryId != null ||
+        _selectedDateFilter != DateFilter.thisMonth;
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: context.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: isMobile ? 4 : 8,
+            runSpacing: isMobile ? 4 : 8,
+            children: [
+              ChoiceChip(
+                label: const Text('All'),
+                selected: _selectedType == null,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _selectedType = null;
+                      _selectedCategoryId = null;
+                    });
+                    _applyFilters();
+                  }
+                },
+              ),
+              ChoiceChip(
+                avatar: const Icon(Icons.arrow_upward, size: 16),
+                label: const Text('Income'),
+                selected: _selectedType == TransactionType.income,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _selectedType = TransactionType.income;
+                      _selectedCategoryId = null;
+                    });
+                    _applyFilters();
+                  }
+                },
+              ),
+              ChoiceChip(
+                avatar: const Icon(Icons.arrow_downward, size: 16),
+                label: const Text('Expense'),
+                selected: _selectedType == TransactionType.expense,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _selectedType = TransactionType.expense;
+                      _selectedCategoryId = null;
+                    });
+                    _applyFilters();
+                  }
+                },
+              ),
+            ],
+          ),
+          AppSpacing.gapMD,
+          // One column on phones, up to three side by side on wider screens.
+          ResponsiveGrid(
+            minItemWidth: 220,
+            maxColumns: 3,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.md,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<DateFilter>(
+                      isExpanded: true,
+                      value: _selectedDateFilter,
+                      decoration: const InputDecoration(
+                        labelText: 'Date Range',
+                        prefixIcon: Icon(Icons.calendar_today),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: DateFilter.values.map((filter) {
+                        return DropdownMenuItem(
+                          value: filter,
+                          child: Text(filter.displayName, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == DateFilter.custom) {
+                          _selectCustomDateRange();
+                        } else if (value != null) {
+                          setState(() => _selectedDateFilter = value);
+                          _applyFilters();
+                        }
+                      },
+                    ),
+                  ),
+                  if (_selectedDateFilter == DateFilter.custom)
+                    IconButton(
+                      icon: const Icon(Icons.edit_calendar),
+                      tooltip: 'Change date range',
+                      onPressed: _selectCustomDateRange,
+                    ),
+                ],
+              ),
+              if (activeAccounts.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: _selectedAccountId,
+                  decoration: const InputDecoration(
+                    labelText: 'Account',
+                    prefixIcon: Icon(Icons.account_balance_wallet),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('All Accounts'),
+                    ),
+                    ...activeAccounts.map((account) {
+                      return DropdownMenuItem(
+                        value: account.id,
+                        child: Row(
+                          children: [
+                            Text(account.icon),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(account.name, overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _selectedAccountId = value);
+                    _applyFilters();
+                  },
+                ),
+              if (categories.isNotEmpty)
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  value: _selectedCategoryId,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    prefixIcon: Icon(Icons.category),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All Categories'),
+                    ),
+                    ...categories.where((c) {
+                      if (_selectedType == null) return true;
+                      final categoryType = _selectedType == TransactionType.income
+                          ? CategoryType.income
+                          : CategoryType.expense;
+                      return c.type == categoryType;
+                    }).map((category) {
+                      return DropdownMenuItem<String?>(
+                        value: category.id,
+                        child: Row(
+                          children: [
+                            Text(category.icon),
+                            AppSpacing.gapSM,
+                            Expanded(
+                              child: Text(category.name, overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _selectedCategoryId = value);
+                    _applyFilters();
+                  },
+                ),
+            ],
+          ),
+          if (hasActiveFilters) ...[
+            AppSpacing.gapSM,
+            TextButton.icon(
+              onPressed: _clearFilters,
+              icon: const Icon(Icons.clear_all),
+              label: const Text('Clear Filters'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildList(
+    BuildContext context,
+    TransactionsState transactionsState,
+    bool isMobile,
+  ) {
+    final listPadding = EdgeInsets.all(isMobile ? 8 : 16);
+
+    Widget card(TransactionModel transaction) => TransactionCard(
+          transaction: transaction,
+          onTap: () => _showTransactionDetailModal(context, transaction.id),
+          onDelete: () => _deleteTransaction(context, ref, transaction),
+          onEdit: () => _editTransaction(context, transaction),
+        );
+
+    Widget fill(Widget child) =>
+        SliverFillRemaining(hasScrollBody: false, child: child);
+
+    return transactionsState.when(
+      initial: () => [fill(const LoadingIndicator(size: 32))],
+      loading: () => [fill(const LoadingIndicator(size: 32))],
+      error: (failure) => [
+        fill(ErrorView(message: failure.message, onRetry: _applyFilters)),
+      ],
+      loaded: (transactions, hasMore, _) {
+        if (transactions.isEmpty) {
+          return [
+            fill(
+              const EmptyState(
+                title: 'No transactions found',
+                message: 'Try adjusting your filters',
+                iconData: Icons.receipt_long_outlined,
+              ),
+            ),
+          ];
+        }
+        return [
+          SliverPadding(
+            padding: listPadding,
+            sliver: SliverList.builder(
+              itemCount: transactions.length,
+              itemBuilder: (context, index) => card(transactions[index]),
+            ),
+          ),
+        ];
+      },
+      loadingMore: (transactions, hasMore, _) => [
+        SliverPadding(
+          padding: listPadding,
+          sliver: SliverList.builder(
+            itemCount: transactions.length + 1,
+            itemBuilder: (context, index) {
+              if (index == transactions.length) {
+                return const Padding(
+                  padding: AppSpacing.paddingMD,
+                  child: LoadingIndicator(),
+                );
+              }
+              return card(transactions[index]);
+            },
+          ),
+        ),
+      ],
     );
   }
 }

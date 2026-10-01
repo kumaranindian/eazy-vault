@@ -5,6 +5,7 @@ import '../../domain/enums/category_type.dart';
 import '../../domain/repositories/categories_repository.dart';
 import '../datasources/categories_remote_datasource.dart';
 import '../models/category_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class CategoriesRepositoryImpl implements CategoriesRepository {
   CategoriesRepositoryImpl({required CategoriesRemoteDataSource remoteDataSource})
@@ -28,7 +29,7 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
       return (categories: <CategoryModel>[], failure: Failure.networkError(e.message));
     } catch (e) {
       LoggerService.error('Unknown error', error: e);
-      return (categories: <CategoryModel>[], failure: Failure.unknownError(e.toString()));
+      return (categories: <CategoryModel>[], failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -48,7 +49,7 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
       return (category: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (category: null, failure: Failure.unknownError(e.toString()));
+      return (category: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -68,7 +69,7 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
       return (category: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (category: null, failure: Failure.unknownError(e.toString()));
+      return (category: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -88,7 +89,7 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
       return (category: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (category: null, failure: Failure.unknownError(e.toString()));
+      return (category: null, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
@@ -102,7 +103,7 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
       return Failure.serverError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -116,7 +117,7 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
       return Failure.serverError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 

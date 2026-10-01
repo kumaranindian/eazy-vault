@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../data/models/account_financials.dart';
@@ -21,7 +24,12 @@ class AccountBreakdownChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = context.isMobile;
+    final chartHeight = context.isCompactHeight
+        ? 200.0
+        : isMobile
+            ? 220.0
+            : 320.0;
 
     if (accounts.isEmpty) {
       return const SizedBox.shrink();
@@ -41,10 +49,12 @@ class AccountBreakdownChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isMobile)
-          _buildMobileLayout(theme, activeAccounts)
-        else
-          _buildDesktopLayout(theme, activeAccounts),
+        _buildResponsiveLayout(
+          theme,
+          activeAccounts,
+          isMobile: isMobile,
+          height: chartHeight,
+        ),
       ],
     );
   }
@@ -55,36 +65,33 @@ class AccountBreakdownChart extends StatelessWidget {
   static const Color expenseColor = Color(0xFFEF4444); // Red
   static const Color balanceColor = Color(0xFF3B82F6); // Blue
 
-  Widget _buildMobileLayout(ThemeData theme, List<AccountModel> activeAccounts) {
+  /// Fills the available width; only scrolls horizontally (inside the chart
+  /// area) when there are more accounts than fit.
+  Widget _buildResponsiveLayout(
+    ThemeData theme,
+    List<AccountModel> activeAccounts, {
+    required bool isMobile,
+    required double height,
+  }) {
+    final minWidthPerAccount = isMobile ? 80.0 : 120.0;
     return Column(
       children: [
         SizedBox(
-          height: 220,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: activeAccounts.length * 80.0 + 50,
-              child: _buildChart(activeAccounts, isMobile: true),
-            ),
-          ),
-        ),
-        AppSpacing.gapMD,
-        _buildLegend(theme),
-      ],
-    );
-  }
-
-  Widget _buildDesktopLayout(ThemeData theme, List<AccountModel> activeAccounts) {
-    return Column(
-      children: [
-        SizedBox(
-          height: 320,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: activeAccounts.length * 120.0 + 50,
-              child: _buildChart(activeAccounts, isMobile: false),
-            ),
+          height: height,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final chartWidth = math.max(
+                constraints.maxWidth,
+                activeAccounts.length * minWidthPerAccount + 50,
+              );
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: chartWidth,
+                  child: _buildChart(activeAccounts, isMobile: isMobile),
+                ),
+              );
+            },
           ),
         ),
         AppSpacing.gapMD,

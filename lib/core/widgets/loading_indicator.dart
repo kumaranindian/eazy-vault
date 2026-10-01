@@ -19,6 +19,7 @@ class LoadingIndicator extends StatelessWidget {
         width: size,
         height: size,
         child: CircularProgressIndicator(
+          semanticsLabel: 'Loading',
           strokeWidth: strokeWidth,
           valueColor: color != null
               ? AlwaysStoppedAnimation<Color>(color!)
@@ -42,7 +43,7 @@ class FullScreenLoader extends StatelessWidget {
     return Scaffold(
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             const LoadingIndicator(size: 48),
             if (message != null) ...[
@@ -56,6 +57,36 @@ class FullScreenLoader extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Content for a submit button while its action runs: a small spinner plus a
+/// label such as "Saving...". Disable the button (onPressed: null) while this
+/// is shown so the action can't be triggered twice.
+class ButtonProgress extends StatelessWidget {
+  const ButtonProgress({super.key, this.label = 'Loading...'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = DefaultTextStyle.of(context).style.color;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor:
+                color == null ? null : AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 }

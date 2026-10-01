@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_spacing.dart';
+import '../constants/breakpoints.dart';
 
 class EmptyState extends StatelessWidget {
   const EmptyState({
@@ -23,25 +24,30 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Smaller illustration on short viewports (landscape phones) and narrow
+    // hosts such as dialogs, so the message and button stay visible.
+    final compact =
+        Breakpoints.isCompactHeight(MediaQuery.sizeOf(context).height);
+    final iconSize = compact ? 64.0 : 120.0;
 
     return Center(
       child: Padding(
-        padding: AppSpacing.paddingXL,
+        padding: compact ? AppSpacing.paddingMD : AppSpacing.paddingXL,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null)
               icon!
             else if (iconData != null)
               Icon(
                 iconData,
-                size: 120,
+                size: iconSize,
                 color: theme.colorScheme.outline.withOpacity(0.3),
               )
             else
               Icon(
                 Icons.inbox_outlined,
-                size: 120,
+                size: iconSize,
                 color: theme.colorScheme.outline.withOpacity(0.3),
               ),
             AppSpacing.gapLG,
@@ -61,7 +67,7 @@ class EmptyState extends StatelessWidget {
               ),
             ],
             if (action != null && actionLabel != null) ...[
-              AppSpacing.gapXL,
+              compact ? AppSpacing.gapMD : AppSpacing.gapXL,
               ElevatedButton.icon(
                 onPressed: action,
                 icon: const Icon(Icons.add),

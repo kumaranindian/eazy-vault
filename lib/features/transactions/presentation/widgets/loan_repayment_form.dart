@@ -15,6 +15,8 @@ import '../../domain/models/loan_metadata.dart';
 import '../providers/financial_refresh.dart';
 import '../providers/loan_providers.dart';
 import '../providers/transactions_notifier.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/utils/validators.dart';
 
 class LoanRepaymentForm extends ConsumerStatefulWidget {
   const LoanRepaymentForm({
@@ -71,7 +73,9 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
 
     try {
       final user = ref.read(currentUserProvider);
-      if (user == null) throw Exception('User not authenticated');
+      if (user == null) {
+        throw const AuthenticationException(ErrorMessages.sessionExpired);
+      }
 
       final repaymentAmount = double.tryParse(_amountController.text.trim()) ?? 0;
       if (repaymentAmount <= 0) {
@@ -126,7 +130,7 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
       if (mounted) context.showErrorSnackBar(e.message);
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to record repayment: ${e.toString()}');
+        context.showErrorSnackBar(ErrorMessages.from(e, action: 'record repayment'));
       }
     } finally {
       if (mounted) {
@@ -154,7 +158,9 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
     final originalAmount = loanMetadata.originalAmount ?? widget.loanTransaction.amount;
     final remainingAmount = loanMetadata.remainingAmount ?? widget.loanTransaction.amount;
     final paidAmount = originalAmount - remainingAmount;
-    final completionPercentage = (paidAmount / originalAmount) * 100;
+    final completionPercentage = originalAmount > 0
+        ? ((paidAmount / originalAmount) * 100).clamp(0.0, 100.0)
+        : 0.0;
 
     return Form(
       key: _formKey,
@@ -170,11 +176,18 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                   color: context.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Record Repayment',
-                  style: context.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Record Repayment',
+                    style: context.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: _isLoading ? null : () => Navigator.of(context).maybePop(),
                 ),
               ],
             ),
@@ -227,7 +240,8 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
+                        Flexible(
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
@@ -242,7 +256,10 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                             ),
                           ],
                         ),
-                        Column(
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
@@ -255,8 +272,10 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                                 fontWeight: FontWeight.bold,
                                 color: Colors.orange,
                               ),
+                              textAlign: TextAlign.end,
                             ),
                           ],
+                        ),
                         ),
                       ],
                     ),
@@ -283,7 +302,7 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                         const SizedBox(height: 4),
                         LinearProgressIndicator(
                           value: completionPercentage / 100,
-                          backgroundColor: Colors.grey[300],
+                          backgroundColor: context.colorScheme.surfaceContainerHighest,
                           minHeight: 8,
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -299,9 +318,11 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                             color: context.colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
-                          Text(
+                          Flexible(
+                            child: Text(
                             'Due: ${loanMetadata.dueDate!.day}/${loanMetadata.dueDate!.month}/${loanMetadata.dueDate!.year}',
                             style: context.textTheme.bodySmall,
+                          ),
                           ),
                           if (widget.loanTransaction.isOverdue) ...[
                             const SizedBox(width: 8),
@@ -347,13 +368,9 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter amount';
-                }
-                final amount = double.tryParse(value);
-                if (amount == null || amount <= 0) {
-                  return 'Please enter a valid amount';
-                }
+                final error = Validators.positiveAmount(value);
+                if (error != null) return error;
+                final amount = double.parse(value!.trim());
                 if (amount > remainingAmount) {
                   return 'Amount exceeds remaining balance';
                 }
@@ -365,6 +382,7 @@ class _LoanRepaymentFormState extends ConsumerState<LoanRepaymentForm> {
             // Quick Amount Buttons
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 if (remainingAmount >= 100)
                   _QuickAmountChip(

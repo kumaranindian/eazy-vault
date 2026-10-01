@@ -6,6 +6,7 @@ import '../../../../core/services/logger_service.dart';
 import '../../data/models/transaction_model.dart';
 import '../enums/transaction_type.dart';
 import '../models/loan_metadata.dart';
+import '../../../../core/utils/error_messages.dart';
 
 /// Writes transactions together with their effect on account balances.
 ///
@@ -505,7 +506,7 @@ class AccountBalanceService {
       rethrow;
     } catch (e, stackTrace) {
       LoggerService.error('Failed to $operation', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to $operation: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: operation));
     }
   }
 }

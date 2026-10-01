@@ -20,6 +20,8 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="EazyVault - Smart Finance Starts Here. A production-ready Personal Finance Management application.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#121212">
+  <meta name="color-scheme" content="dark">
 
   <!-- Google Sign-In -->
   <meta name="google-signin-client_id" content="287395581894-3badc2304f6bd26b98acc7.apps.googleusercontent.com">
@@ -35,6 +37,17 @@
 
   <title>EazyVault - Smart Finance Starts Here</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Match AppColors.backgroundDark so the page never flashes white before
+       Flutter paints, or around the canvas while the viewport resizes. -->
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background-color: #121212;
+      overscroll-behavior: none;
+    }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -8,6 +8,7 @@ import '../../domain/repositories/transactions_repository.dart';
 import '../../domain/services/account_balance_service.dart';
 import '../datasources/transactions_remote_datasource.dart';
 import '../models/transaction_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
   TransactionsRepositoryImpl({
@@ -20,7 +21,12 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   final AccountBalanceService _balanceService;
 
   @override
-  Future<({List<TransactionModel> transactions, DocumentSnapshot? lastDocument, Failure? failure})> getTransactions(
+  Future<
+      ({
+        List<TransactionModel> transactions,
+        DocumentSnapshot? lastDocument,
+        Failure? failure
+      })> getTransactions(
     String userId, {
     TransactionType? type,
     String? accountId,
@@ -41,15 +47,31 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
         limit: limit,
         lastDocument: lastDocument,
       );
-      return (transactions: result.transactions, lastDocument: result.lastDocument, failure: null);
+      return (
+        transactions: result.transactions,
+        lastDocument: result.lastDocument,
+        failure: null
+      );
     } on ServerException catch (e) {
       LoggerService.error('Server error', error: e);
-      return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.serverError(e.message));
+      return (
+        transactions: <TransactionModel>[],
+        lastDocument: null,
+        failure: Failure.serverError(e.message)
+      );
     } on NetworkException catch (e) {
-      return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.networkError(e.message));
+      return (
+        transactions: <TransactionModel>[],
+        lastDocument: null,
+        failure: Failure.networkError(e.message)
+      );
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transactions: <TransactionModel>[], lastDocument: null, failure: Failure.unknownError(e.toString()));
+      return (
+        transactions: <TransactionModel>[],
+        lastDocument: null,
+        failure: Failure.unknownError(ErrorMessages.from(e))
+      );
     }
   }
 
@@ -59,7 +81,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     String transactionId,
   ) async {
     try {
-      final transaction = await _remoteDataSource.getTransaction(userId, transactionId);
+      final transaction =
+          await _remoteDataSource.getTransaction(userId, transactionId);
       return (transaction: transaction, failure: null);
     } on NotFoundException catch (e) {
       LoggerService.error('Not found error', error: e);
@@ -69,7 +92,10 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transaction: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transaction: null, failure: Failure.unknownError(e.toString()));
+      return (
+        transaction: null,
+        failure: Failure.unknownError(ErrorMessages.from(e))
+      );
     }
   }
 
@@ -96,7 +122,10 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transaction: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transaction: null, failure: Failure.unknownError(e.toString()));
+      return (
+        transaction: null,
+        failure: Failure.unknownError(ErrorMessages.from(e))
+      );
     }
   }
 
@@ -123,7 +152,10 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (transaction: null, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (transaction: null, failure: Failure.unknownError(e.toString()));
+      return (
+        transaction: null,
+        failure: Failure.unknownError(ErrorMessages.from(e))
+      );
     }
   }
 
@@ -148,7 +180,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return Failure.serverError(e.message);
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return Failure.unknownError(e.toString());
+      return Failure.unknownError(ErrorMessages.from(e));
     }
   }
 
@@ -158,7 +190,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     TransactionType? type,
     int? limit,
   }) {
-    return _remoteDataSource.watchTransactions(userId, type: type, limit: limit);
+    return _remoteDataSource.watchTransactions(userId,
+        type: type, limit: limit);
   }
 
   @override
@@ -181,12 +214,16 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (total: 0.0, failure: Failure.serverError(e.message));
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (total: 0.0, failure: Failure.unknownError(e.toString()));
+      return (total: 0.0, failure: Failure.unknownError(ErrorMessages.from(e)));
     }
   }
 
   @override
-  Future<({Map<String, ({double income, double expense})> totals, Failure? failure})> getTotalsByAccount(
+  Future<
+      ({
+        Map<String, ({double income, double expense})> totals,
+        Failure? failure
+      })> getTotalsByAccount(
     String userId, {
     DateTime? startDate,
     DateTime? endDate,
@@ -200,15 +237,25 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return (totals: totals, failure: null);
     } on ServerException catch (e) {
       LoggerService.error('Server error', error: e);
-      return (totals: <String, ({double income, double expense})>{}, failure: Failure.serverError(e.message));
+      return (
+        totals: <String, ({double income, double expense})>{},
+        failure: Failure.serverError(e.message)
+      );
     } catch (e, stackTrace) {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
-      return (totals: <String, ({double income, double expense})>{}, failure: Failure.unknownError(e.toString()));
+      return (
+        totals: <String, ({double income, double expense})>{},
+        failure: Failure.unknownError(ErrorMessages.from(e))
+      );
     }
   }
 
   @override
-  Future<({Map<DateTime, ({double income, double expense})> totals, Failure? failure})> getMonthlyTotals(
+  Future<
+      ({
+        Map<DateTime, ({double income, double expense})> totals,
+        Failure? failure
+      })> getMonthlyTotals(
     String userId, {
     required DateTime startDate,
     required DateTime endDate,
@@ -230,7 +277,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
       return (
         totals: <DateTime, ({double income, double expense})>{},
-        failure: Failure.unknownError(e.toString()),
+        failure: Failure.unknownError(ErrorMessages.from(e)),
       );
     }
   }

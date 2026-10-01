@@ -6,6 +6,7 @@ import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../models/transaction_model.dart';
+import '../../../../core/utils/error_messages.dart';
 
 abstract class TransactionsRemoteDataSource {
   Future<({List<TransactionModel> transactions, DocumentSnapshot? lastDocument})> getTransactions(
@@ -125,7 +126,7 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
       return (transactions: transactions, lastDocument: lastDoc);
     } catch (e, stackTrace) {
       LoggerService.error('Get transactions error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to fetch transactions: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load transactions'));
     }
   }
 
@@ -144,7 +145,7 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get transaction error', error: e, stackTrace: stackTrace);
       if (e is NotFoundException) rethrow;
-      throw ServerException('Failed to fetch transaction: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load transaction'));
     }
   }
 
@@ -175,7 +176,7 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
       });
     } catch (e, stackTrace) {
       LoggerService.error('Watch transactions error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to watch transactions: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'load transactions'));
     }
   }
 
@@ -212,7 +213,7 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
       return total;
     } catch (e, stackTrace) {
       LoggerService.error('Get total error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to calculate total: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'calculate total'));
     }
   }
 
@@ -261,7 +262,7 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
       return accountTotals;
     } catch (e, stackTrace) {
       LoggerService.error('Get totals by account error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to calculate totals by account: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'calculate totals by account'));
     }
   }
 
@@ -297,7 +298,7 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
       return totals;
     } catch (e, stackTrace) {
       LoggerService.error('Get monthly totals error', error: e, stackTrace: stackTrace);
-      throw ServerException('Failed to calculate monthly totals: ${e.toString()}');
+      throw ServerException(ErrorMessages.from(e, action: 'calculate monthly totals'));
     }
   }
 }

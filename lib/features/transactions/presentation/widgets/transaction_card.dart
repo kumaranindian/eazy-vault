@@ -12,6 +12,7 @@ import '../../domain/enums/transaction_type.dart';
 import '../../domain/services/account_balance_service.dart';
 import '../../domain/extensions/transaction_extensions.dart';
 import '../../domain/models/loan_metadata.dart';
+import '../../../../core/extensions/context_extensions.dart';
 
 class TransactionCard extends ConsumerWidget {
   const TransactionCard({
@@ -39,32 +40,16 @@ class TransactionCard extends ConsumerWidget {
 
     return Dismissible(
       key: Key(transaction.id),
-      direction: DismissDirection.endToStart,
+      direction: onDelete == null
+          ? DismissDirection.none
+          : DismissDirection.endToStart,
+      // Every onDelete handler asks for confirmation and removes the item
+      // from its list, so hand off and keep the card in the tree (returning
+      // true here would double-confirm and break if the user cancels).
       confirmDismiss: (direction) async {
-        return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Transaction'),
-            content: const Text(
-              'Are you sure you want to delete this transaction? This action cannot be undone.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.error,
-                ),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        );
+        onDelete?.call();
+        return false;
       },
-      onDismissed: (direction) => onDelete?.call(),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 16),
@@ -84,7 +69,7 @@ class TransactionCard extends ConsumerWidget {
             child: Row(
               children: [
                 _buildTransactionIcon(theme, categoryAsync),
-                AppSpacing.gapMD,
+                context.isMobile ? AppSpacing.gapSM : AppSpacing.gapMD,
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,22 +169,35 @@ class TransactionCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                AppSpacing.gapMD,
-                Column(
+                AppSpacing.gapSM,
+                // Capped so large amounts shrink instead of squeezing the
+                // title to nothing on narrow phones.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: context.isMobile ? 150 : 220,
+                  ),
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          transaction.amount.toCurrency(),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: _amountColor(theme),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              transaction.amount.toCurrency(),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: _amountColor(theme),
+                              ),
+                            ),
                           ),
                         ),
                         if (onEdit != null || onDelete != null) ...[
-                          AppSpacing.gapSM,
                           PopupMenuButton<String>(
+                            tooltip: 'Transaction actions',
                             icon: Icon(
                               Icons.more_vert,
                               color: theme.colorScheme.onSurface.withOpacity(0.6),
@@ -247,8 +245,11 @@ class TransactionCard extends ConsumerWidget {
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.6),
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                ),
                 ),
               ],
             ),

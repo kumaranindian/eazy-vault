@@ -14,6 +14,11 @@ import '../../../../core/widgets/loading_indicator.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../providers/transactions_notifier.dart';
+import '../../../../core/utils/error_messages.dart';
+import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/error_view.dart';
+import '../../../../core/widgets/responsive_layout.dart';
+import '../../domain/services/account_balance_service.dart';
 
 class TransactionDetailPage extends ConsumerWidget {
   const TransactionDetailPage({
@@ -35,7 +40,10 @@ class TransactionDetailPage extends ConsumerWidget {
             data: (transaction) {
               if (transaction == null) return const SizedBox.shrink();
               return PopupMenuButton(
+                tooltip: 'Transaction actions',
                 itemBuilder: (context) => [
+                  // Transfers and loans can't be edited, only deleted.
+                  if (AccountBalanceService.isEditableType(transaction.type))
                   const PopupMenuItem(
                     value: 'edit',
                     child: Row(
@@ -98,15 +106,19 @@ class TransactionDetailPage extends ConsumerWidget {
       body: transactionAsync.when(
         data: (transaction) {
           if (transaction == null) {
-            return const Center(
-              child: Text('Transaction not found'),
+            return const EmptyState(
+              title: 'Transaction not found',
+              message: 'It may have been deleted.',
+              iconData: Icons.receipt_long_outlined,
             );
           }
 
           final categoryAsync = ref.watch(categoryProvider(transaction.categoryId));
           final accountAsync = ref.watch(accountProvider(transaction.accountId));
 
-          return ListView(
+          return ResponsiveContent(
+            maxWidth: 800,
+            child: ListView(
             padding: AppSpacing.paddingMD,
             children: [
               Card(
@@ -274,27 +286,14 @@ class TransactionDetailPage extends ConsumerWidget {
                 ),
               ),
             ],
+            ),
           );
         },
         loading: () => const LoadingIndicator(),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              AppSpacing.gapMD,
-              Text(
-                'Failed to load transaction',
-                style: context.textTheme.titleMedium,
-              ),
-              AppSpacing.gapSM,
-              Text(
-                error.toString(),
-                style: context.textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+        error: (error, stack) => ErrorView(
+          title: 'Failed to load transaction',
+          message: ErrorMessages.from(error, action: 'load this transaction'),
+          onRetry: () => ref.invalidate(transactionProvider(transactionId)),
         ),
       ),
     );

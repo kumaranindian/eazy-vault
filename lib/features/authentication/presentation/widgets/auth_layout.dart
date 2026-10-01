@@ -20,12 +20,17 @@ class AuthLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
+    // Landscape phones: tighter spacing and a smaller logo so the form is
+    // reachable without scrolling past the branding.
+    final compact = context.isCompactHeight;
 
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(isMobile ? AppSpacing.lg : AppSpacing.xxl),
+            padding: EdgeInsets.all(
+              isMobile || compact ? AppSpacing.lg : AppSpacing.xxl,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
               child: Column(
@@ -34,7 +39,7 @@ class AuthLayout extends StatelessWidget {
                 children: [
                   Image.asset(
                     'eazyvault_logo.png',
-                    height: 80,
+                    height: compact ? 48 : 80,
                     fit: BoxFit.contain,
                   ),
                   AppSpacing.gapLG,
@@ -54,7 +59,7 @@ class AuthLayout extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  AppSpacing.gapXXL,
+                  compact ? AppSpacing.gapLG : AppSpacing.gapXXL,
                   Text(
                     title,
                     style: context.textTheme.headlineSmall,

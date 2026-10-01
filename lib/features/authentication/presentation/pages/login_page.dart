@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../providers/auth_notifier.dart';
 import '../widgets/auth_layout.dart';
 import '../widgets/google_sign_in_button.dart';
+import '../../../../core/widgets/loading_indicator.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -70,6 +71,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() => _isLoading = false);
 
     if (success) {
+      context.showSuccessSnackBar('Signed in successfully');
       context.go(RouteConstants.dashboard);
     } else {
       final authState = ref.read(authNotifierProvider);
@@ -89,6 +91,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() => _isLoading = false);
 
     if (success) {
+      context.showSuccessSnackBar('Signed in successfully');
       context.go(RouteConstants.dashboard);
     } else {
       final authState = ref.read(authNotifierProvider);
@@ -130,6 +133,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 ),
+                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
               validator: (value) => Validators.required(value, fieldName: 'Password'),
@@ -137,16 +141,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               enabled: !_isLoading,
             ),
             AppSpacing.gapSM,
-            Row(
+            // Wraps onto two lines on narrow phones instead of overflowing.
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Checkbox(
-                  value: _rememberMe,
-                  onChanged: _isLoading
-                      ? null
-                      : (value) => setState(() => _rememberMe = value ?? false),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: _isLoading
+                          ? null
+                          : (value) => setState(() => _rememberMe = value ?? false),
+                    ),
+                    const Text('Remember me'),
+                  ],
                 ),
-                const Text('Remember me'),
-                const Spacer(),
                 TextButton(
                   onPressed: _isLoading
                       ? null
@@ -159,11 +170,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ElevatedButton(
               onPressed: _isLoading ? null : _handleEmailSignIn,
               child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const ButtonProgress(label: 'Signing in...')
                   : const Text('Sign In'),
             ),
             AppSpacing.gapMD,
@@ -185,8 +192,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               onPressed: _isLoading ? null : _handleGoogleSignIn,
             ),
             AppSpacing.gapXL,
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   "Don't have an account? ",
