@@ -21,6 +21,8 @@ import '../widgets/transaction_list_header.dart';
 import '../widgets/transactions_modal.dart';
 import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
+import '../../../reports/domain/enums/report_type.dart';
+import '../../../reports/presentation/widgets/export_config_sheet.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
   const TransactionsPage({super.key});
@@ -166,6 +168,14 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
       appBar: AppBar(
         title: const Text('Transactions'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            onPressed: () => ExportConfigSheet.show(
+              context,
+              reportType: ReportType.transactionStatement,
+            ),
+            tooltip: 'Export',
+          ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: _showSearchDialog,

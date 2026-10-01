@@ -42,6 +42,8 @@ import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
 import '../../../../core/widgets/form_dialog.dart';
+import '../../../reports/domain/enums/report_type.dart';
+import '../../../reports/presentation/widgets/export_config_sheet.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -218,6 +220,12 @@ class DashboardPage extends ConsumerWidget {
                                 color: Colors.indigo,
                                 onTap: () => _showRecurringModal(context),
                               ),
+                              QuickActionButton(
+                                label: 'Reports',
+                                icon: Icons.summarize_outlined,
+                                color: Colors.brown,
+                                onTap: () => context.push(RouteConstants.reports),
+                              ),
                             ],
                           ),
                           AppSpacing.gapXL,
@@ -241,11 +249,26 @@ class DashboardPage extends ConsumerWidget {
                             ),
                           ),
                           AppSpacing.gapXL,
-                          Text(
-                            'This Month',
-                            style: context.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'This Month',
+                                  style: context.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.file_download_outlined),
+                                tooltip: 'Export',
+                                onPressed: () => ExportConfigSheet.show(
+                                  context,
+                                  reportType: ReportType.monthly,
+                                  initialMonth: DateTime.now(),
+                                ),
+                              ),
+                            ],
                           ),
                           AppSpacing.gapMD,
                           monthlyStats.when(

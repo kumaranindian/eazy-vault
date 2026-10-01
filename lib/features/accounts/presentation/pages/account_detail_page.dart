@@ -14,6 +14,8 @@ import '../../../../core/utils/error_messages.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/responsive_layout.dart';
+import '../../../reports/domain/enums/report_type.dart';
+import '../../../reports/presentation/widgets/export_config_sheet.dart';
 
 class AccountDetailPage extends ConsumerWidget {
   const AccountDetailPage({
@@ -34,58 +36,20 @@ class AccountDetailPage extends ConsumerWidget {
           accountAsync.when(
             data: (account) {
               if (account == null) return const SizedBox.shrink();
-              return PopupMenuButton(
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit_outlined),
-                        SizedBox(width: 12),
-                        Text('Edit'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_outline, color: Colors.red),
-                        SizedBox(width: 12),
-                        Text('Delete', style: TextStyle(color: Colors.red)),
-                      ],
-                    ),
-                  ),
-                ],
-                onSelected: (value) async {
-                  if (value == 'edit') {
-                    context.push(
-                      RouteConstants.editAccount.replaceAll(':id', accountId),
-                    );
-                  } else if (value == 'delete') {
-                    final confirmed = await ConfirmationDialog.show(
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.file_download_outlined),
+                    tooltip: 'Export Statement',
+                    onPressed: () => ExportConfigSheet.show(
                       context,
-                      title: 'Delete Account',
-                      message:
-                          'Are you sure you want to delete this account? This action cannot be undone.',
-                      confirmText: 'Delete',
-                      isDestructive: true,
-                    );
-
-                    if (confirmed && context.mounted) {
-                      final failure = await ref
-                          .read(accountsNotifierProvider.notifier)
-                          .deleteAccount(accountId);
-
-                      if (failure == null && context.mounted) {
-                        context.showSuccessSnackBar('Account deleted successfully');
-                        context.pop();
-                      } else if (context.mounted) {
-                        context.showErrorSnackBar(failure?.message);
-                      }
-                    }
-                  }
-                },
+                      reportType: ReportType.accountStatement,
+                      initialAccountId: accountId,
+                    ),
+                  ),
+                  _AccountActionsMenu(accountId: accountId),
+                ],
               );
             },
             loading: () => const SizedBox.shrink(),
@@ -303,6 +267,69 @@ class AccountDetailPage extends ConsumerWidget {
         ),
         ),
       ],
+    );
+  }
+}
+
+class _AccountActionsMenu extends ConsumerWidget {
+  const _AccountActionsMenu({required this.accountId});
+
+  final String accountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton(
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined),
+              SizedBox(width: 12),
+              Text('Edit'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Delete', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+      ],
+      onSelected: (value) async {
+        if (value == 'edit') {
+          context.push(
+            RouteConstants.editAccount.replaceAll(':id', accountId),
+          );
+        } else if (value == 'delete') {
+          final confirmed = await ConfirmationDialog.show(
+            context,
+            title: 'Delete Account',
+            message:
+                'Are you sure you want to delete this account? This action cannot be undone.',
+            confirmText: 'Delete',
+            isDestructive: true,
+          );
+
+          if (confirmed && context.mounted) {
+            final failure = await ref
+                .read(accountsNotifierProvider.notifier)
+                .deleteAccount(accountId);
+
+            if (failure == null && context.mounted) {
+              context.showSuccessSnackBar('Account deleted successfully');
+              context.pop();
+            } else if (context.mounted) {
+              context.showErrorSnackBar(failure?.message);
+            }
+          }
+        }
+      },
     );
   }
 }

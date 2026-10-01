@@ -14,6 +14,7 @@ import '../../features/authentication/presentation/providers/auth_providers.dart
 import '../../features/categories/presentation/pages/add_edit_category_page.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/transactions/domain/enums/transaction_type.dart';
 import '../../features/transactions/presentation/pages/add_edit_transaction_page.dart';
 import '../../features/transactions/presentation/pages/transaction_detail_page.dart';
@@ -177,6 +178,10 @@ GoRouter appRouter(AppRouterRef ref) {
           final id = state.pathParameters['id']!;
           return AddEditTransactionPage(transactionId: id);
         },
+      ),
+      GoRoute(
+        path: RouteConstants.reports,
+        builder: (context, state) => const ReportsPage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

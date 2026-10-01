@@ -37,6 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Firebase configured but unused in code | Storage (`storage.rules` exists, `firebase_storage` never imported) |
 | Charts | `fl_chart` |
 | Formatting | `intl` |
+| Export | `pdf` + `printing` (PDF), `excel` (real `.xlsx`) — see §22 |
 | Logging | `logger` wrapped by `LoggerService` |
 | Local storage | `shared_preferences` (remember-me, last email) |
 | Hosting | Firebase Hosting serving `build/web` with SPA rewrite to `/index.html` |
@@ -85,7 +86,7 @@ test/
   widget_test.dart          # stale Flutter counter template (broken)
 ```
 
-Features: `authentication`, `accounts`, `categories`, `transactions`, `dashboard`. There is **no `settings` or `profile` feature** even though the README and `RouteConstants.settings/profile` mention them. `dashboard` has no data layer of its own except `AccountFinancials`; it composes other features' repositories/providers.
+Features: `authentication`, `accounts`, `categories`, `transactions`, `dashboard`, `budgets`, `recurring_transactions`, `reports` (§22 — not yet reflected elsewhere in this doc's older sections; verify against the actual `lib/features/` listing rather than assuming this file is exhaustive). There is **no `settings` or `profile` feature** even though the README and `RouteConstants.settings/profile` mention them. `dashboard` has no data layer of its own except `AccountFinancials`; it composes other features' repositories/providers. `reports` composes `transactions`/`accounts`/`categories` the same way — no Firestore access of its own.
 
 Where things go:
 - New screen reachable by URL → `features/<f>/presentation/pages/` + route in `app_router.dart` + path in `RouteConstants`.
@@ -393,3 +394,42 @@ Rules this split depends on, enforced in `TransactionsRemoteDataSourceImpl`:
 - Timestamps in documents are Firestore `Timestamp`; models hold `DateTime`. Month-range queries use local-time `DateTime(y, m, 1)` to `DateTime(y, m+1, 0, 23, 59, 59)`.
 - After any write that changes balances outside `TransactionsNotifier`, call `refreshFinancialData(ref.invalidate)` or the dashboard shows stale numbers.
 - Code generation must be re-run after editing any file with `part '*.g.dart'` / `part '*.freezed.dart'`.
+
+## 22. Export & Reports
+
+A `features/reports/` feature (new, not in §1's feature list above — add it there too if this file is next edited by hand) provides 8 report types, each exportable as PDF and `.xlsx`, reachable from the **Reports** quick action on the dashboard (route `/reports`, `ReportsPage`) and from contextual Export buttons on the Dashboard ("This Month"), Transactions page, and an account's detail page ("Export Statement").
+
+### Architecture
+```
+Filters (ExportConfigSheet)
+    → ReportCalculationService.<reportType>(...)   — the only place report numbers are computed
+         → <ReportType>Data (domain/models/report_models.dart, plain Dart, no Firestore)
+              → PdfReportService.build<ReportType>()   (pdf_report_kit.dart: shared header/footer/
+                                                          summary tiles/table — one visual style for all 8)
+              → ExcelReportService.build<ReportType>()  (real .xlsx via the `excel` package: numeric
+                                                          amount cells, real dates, multi-sheet workbooks)
+```
+`ReportCalculationService` (`features/reports/domain/services/`) is built **only** from the app's existing repositories/services (`TransactionsRepository`, `AccountsRepository`, `CategoriesRepository`, `LoanService`) — it never queries Firestore directly, and PDF/Excel generation never recomputes a number independently, so a report's PDF and Excel always agree. `ReportType` (`domain/enums/report_type.dart`) is `monthly | transactionStatement | accountStatement | income | expense | category | loansDebts | annual`; its flags (`usesDateRange`, `usesSingleMonth`, `requiresAccount`, `supportsAccountFilter`, …) drive which filters `ExportConfigSheet` shows for a given type. `ExportConfigSheet` (`presentation/widgets/`) is the one reusable filter/live-preview/export dialog every entry point opens, parameterized by `ReportType`.
+
+"Transaction Statement" is the one report type that doesn't use `PdfReportService`/`ExcelReportService`: it calls `TransactionExportService` (`features/transactions/domain/services/`, pre-existing) directly, which now has `buildCsv`/`buildPdf`/`buildExcel` — a flat transaction list needed no new rendering code.
+
+### Date rules (same as §21 "Income Reporting Period vs Money Movement Date")
+- **Account balances and account statements** (`AccountBalanceService.signedAmountFor`, a new public static method mirroring the private per-account rules the live-write path already uses) always use a transaction's actual `date`, never `incomePeriod`.
+- **Monthly income** (the Monthly, Income, Category and Annual reports' income side) uses `incomePeriod` (`TransactionsRepository.getIncomeTransactions`, the public form of the hybrid incomePeriod/date query from §21).
+- **Expense** reporting always uses `date` — there's no separate "expense period" concept.
+- An account statement's running balance is computed from the account's `openingBalance` plus every non-deleted transaction affecting it up to the statement's end date (ascending), using `signedAmountFor`; the balance accumulated before the selected start date becomes the statement's displayed "Opening Balance" — this means the fetch is bounded by end date only, not the full range, so a very old account with a far-future "from" date still reads its entire prior history once.
+- `TransactionsRepository.getAccountHistory` merges two queries — `accountId == X` and transfers where `metadata.toAccountId == X` — since a transfer's own `accountId` field is always its *source* account; a plain `accountId` filter alone would miss money transferred *into* the account.
+
+### Report-by-report notes
+- **Monthly**: one calendar month; Excel has Summary/Income/Expenses/Accounts sheets (Income/Expenses are transaction-level, not just category totals).
+- **Account Statement**: single account, required; running balance; PDF resembles a bank statement (Date/Description/Debit/Credit/Balance).
+- **Income / Expense**: date-range (income's range is read as a reporting-period range), optional account/category filters; both include a category breakdown.
+- **Category**: expense categories grouped by `date`, income categories grouped by `incomePeriod`, over the same selected window — this is intentional, not a bug (see "Date rules" above).
+- **Loans & Debts**: not date-filtered — "owed to you" / "you owe" as of now, same scope as the dashboard's `LoansSummaryCard`.
+- **Annual**: a full year; `TransactionsRepository.getMonthlyTotals` (already incomePeriod-aware) drives the 12-row monthly breakdown.
+
+### Firestore
+New composite index `isDeleted + type + metadata.toAccountId + date` (for the transfer-in half of `getAccountHistory`) and `isDeleted + accountId + date ASC` (ascending, for statement ordering) in `firestore.indexes.json` — not yet deployed; needs `firebase deploy --only firestore:indexes`. No rules changes (rules don't validate fields, and reports only ever read the calling user's own `users/{uid}/...` data through the existing repositories).
+
+### Don't duplicate
+Never add a report-specific Firestore query or a report-specific balance/income calculation outside `ReportCalculationService` — every number a report shows should trace back to a `TransactionsRepository`/`AccountsRepository`/`CategoriesRepository`/`LoanService`/`AccountBalanceService` call already used elsewhere (dashboard, transaction list, account detail), so the dashboard and every report always agree.

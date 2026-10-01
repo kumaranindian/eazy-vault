@@ -69,4 +69,21 @@ abstract class TransactionsRepository {
     required DateTime startDate,
     required DateTime endDate,
   });
+
+  /// Income transactions whose *effective* reporting period falls in
+  /// [startPeriod]..[endPeriod] (every income transaction when both are
+  /// null). See `TransactionModelExtensions.effectiveIncomePeriod`.
+  Future<({List<TransactionModel> transactions, Failure? failure})> getIncomeTransactions(
+    String userId, {
+    DateTime? startPeriod,
+    DateTime? endPeriod,
+  });
+
+  /// Every non-deleted transaction affecting [accountId]'s balance, dated on
+  /// or before [endDate], sorted ascending by date — for account statements.
+  Future<({List<TransactionModel> transactions, Failure? failure})> getAccountHistory(
+    String userId,
+    String accountId, {
+    DateTime? endDate,
+  });
 }
