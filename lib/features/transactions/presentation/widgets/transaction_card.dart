@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/utils/date_time_utils.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../categories/data/models/category_model.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
@@ -248,6 +249,15 @@ class TransactionCard extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (transaction.hasDistinctIncomePeriod)
+                      Text(
+                        'For ${DateTimeUtils.formatMonthYear(transaction.incomeReportingMonth)}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                 ),
                 ),

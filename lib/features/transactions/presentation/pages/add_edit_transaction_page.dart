@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/utils/date_time_utils.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/month_year_picker.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
@@ -15,7 +17,9 @@ import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
+import '../../domain/extensions/transaction_extensions.dart';
 import '../../domain/services/account_balance_service.dart';
+import '../../domain/utils/income_period.dart';
 import '../providers/transactions_notifier.dart';
 import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/utils/error_messages.dart';
@@ -50,6 +54,11 @@ class _AddEditTransactionPageState
   String? _selectedAccountId;
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
+  // Income only: the month this income is reported under. Defaults to
+  // following `_selectedDate`'s month until the user explicitly picks a
+  // different one (see `_selectIncomePeriod`).
+  DateTime _incomePeriodMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  bool _incomePeriodManuallySet = false;
   bool _isLoading = false;
   // Edit mode: why the stored transaction couldn't be loaded.
   String? _fetchError;
@@ -99,6 +108,13 @@ class _AddEditTransactionPageState
         _selectedAccountId = loaded.accountId;
         _selectedCategoryId = loaded.categoryId;
         _selectedDate = loaded.date;
+        _incomePeriodMonth = loaded.incomeReportingMonth;
+        // An explicit incomePeriod that differs from the credited month's
+        // default means the user chose it deliberately — keep it fixed if
+        // they later change the credited date instead of silently moving it.
+        _incomePeriodManuallySet = loaded.type == TransactionType.income &&
+            loaded.incomePeriod != null &&
+            loaded.incomePeriod != IncomePeriod.of(loaded.date);
         _descriptionController.text = loaded.description ?? '';
         _vendorController.text = loaded.vendor ?? '';
         if (loaded.attachments != null &&
@@ -127,7 +143,29 @@ class _AddEditTransactionPageState
     );
 
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        _selectedDate = picked;
+        // Keep "Income For" following the credited date by default, unless
+        // the user has deliberately chosen a different reporting month.
+        if (!_incomePeriodManuallySet) {
+          _incomePeriodMonth = DateTime(picked.year, picked.month);
+        }
+      });
+    }
+  }
+
+  Future<void> _selectIncomePeriod() async {
+    final picked = await showMonthYearPicker(
+      context: context,
+      initialMonth: _incomePeriodMonth,
+      lastMonth: DateTime(DateTime.now().year + 1, DateTime.now().month),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _incomePeriodMonth = picked;
+        _incomePeriodManuallySet = true;
+      });
     }
   }
 
@@ -159,6 +197,9 @@ class _AddEditTransactionPageState
     final description = _descriptionController.text.trim();
     final vendor = _vendorController.text.trim();
     final attachment = _attachmentController.text.trim();
+    final incomePeriod = _selectedType == TransactionType.income
+        ? IncomePeriod.of(_incomePeriodMonth)
+        : null;
 
     // When editing, start from the stored record so fields this form doesn't
     // show (e.g. metadata) are preserved.
@@ -171,6 +212,7 @@ class _AddEditTransactionPageState
           description: description.isEmpty ? null : description,
           vendor: vendor.isEmpty ? null : vendor,
           attachments: attachment.isEmpty ? null : [attachment],
+          incomePeriod: incomePeriod,
           updatedAt: now,
         ) ??
         TransactionModel(
@@ -189,6 +231,7 @@ class _AddEditTransactionPageState
       attachments: _attachmentController.text.trim().isEmpty
           ? null
           : [_attachmentController.text.trim()],
+      incomePeriod: incomePeriod,
       createdAt: _existingTransaction?.createdAt ?? now,
       updatedAt: now,
       createdBy: user.uid,
@@ -290,6 +333,8 @@ class _AddEditTransactionPageState
                   setState(() {
                     _selectedType = newSelection.first;
                     _selectedCategoryId = null;
+                    _incomePeriodMonth = DateTime(_selectedDate.year, _selectedDate.month);
+                    _incomePeriodManuallySet = false;
                   });
                 },
               ),
@@ -368,15 +413,32 @@ class _AddEditTransactionPageState
               onTap: _isLoading ? null : _selectDate,
               borderRadius: AppSpacing.borderRadiusLG,
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Date',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                decoration: InputDecoration(
+                  labelText: _selectedType == TransactionType.income ? 'Credited Date' : 'Date',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined),
                 ),
                 child: Text(
                   '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                 ),
               ),
             ),
+            if (_selectedType == TransactionType.income) ...[
+              AppSpacing.gapMD,
+              InkWell(
+                onTap: _isLoading ? null : _selectIncomePeriod,
+                borderRadius: AppSpacing.borderRadiusLG,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Income For',
+                    prefixIcon: Icon(Icons.event_note_outlined),
+                    helperText:
+                        'Select the month this income belongs to. This can be different from the credited date.',
+                    helperMaxLines: 2,
+                  ),
+                  child: Text(DateTimeUtils.formatMonthYear(_incomePeriodMonth)),
+                ),
+              ),
+            ],
             AppSpacing.gapMD,
             AppTextField(
               controller: _descriptionController,

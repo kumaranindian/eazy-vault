@@ -13,6 +13,7 @@ import '../../../accounts/data/models/account_model.dart';
 import '../../../categories/data/models/category_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../enums/transaction_type.dart';
+import '../extensions/transaction_extensions.dart';
 
 /// Builds CSV and branded PDF exports of a transaction list. Pure data/byte
 /// generation only — triggering the browser download is a separate, UI-layer
@@ -39,6 +40,7 @@ class TransactionExportService {
       'Description',
       'Vendor',
       'Amount',
+      'Income For',
     ]));
 
     for (final transaction in transactions) {
@@ -50,6 +52,9 @@ class TransactionExportService {
         transaction.description ?? '',
         transaction.vendor ?? '',
         transaction.amount.toStringAsFixed(2),
+        transaction.type == TransactionType.income
+            ? DateFormat('yyyy-MM').format(transaction.incomeReportingMonth)
+            : '',
       ]));
     }
 
@@ -292,7 +297,7 @@ class TransactionExportService {
     required PdfColor expenseColor,
     required PdfColor borderColor,
   }) {
-    const headers = ['Date', 'Type', 'Category', 'Account', 'Description', 'Amount'];
+    const headers = ['Date', 'Type', 'Category', 'Account', 'Description', 'Amount', 'Income For'];
     final columnWidths = {
       0: const pw.FlexColumnWidth(1.4),
       1: const pw.FlexColumnWidth(1.2),
@@ -300,6 +305,7 @@ class TransactionExportService {
       3: const pw.FlexColumnWidth(1.6),
       4: const pw.FlexColumnWidth(2.4),
       5: const pw.FlexColumnWidth(1.4),
+      6: const pw.FlexColumnWidth(1.2),
     };
 
     return pw.Table(
@@ -359,6 +365,7 @@ class TransactionExportService {
     final categoryName = categoriesById[transaction.categoryId]?.name ?? transaction.type.displayName;
     final accountName = accountsById[transaction.accountId]?.name ?? 'Unknown';
 
+    const amountColumnIndex = 5;
     final cells = [
       dateFormat.format(transaction.date),
       transaction.type.displayName,
@@ -366,6 +373,9 @@ class TransactionExportService {
       accountName,
       transaction.description ?? transaction.vendor ?? '-',
       '$amountPrefix${CurrencyUtils.format(transaction.amount)}',
+      transaction.type == TransactionType.income
+          ? DateFormat('MMM yyyy').format(transaction.incomeReportingMonth)
+          : '-',
     ];
 
     return pw.TableRow(
@@ -380,8 +390,8 @@ class TransactionExportService {
               cells[i],
               style: pw.TextStyle(
                 fontSize: 8.5,
-                color: i == cells.length - 1 ? amountColor : PdfColors.black,
-                fontWeight: i == cells.length - 1 ? pw.FontWeight.bold : pw.FontWeight.normal,
+                color: i == amountColumnIndex ? amountColor : PdfColors.black,
+                fontWeight: i == amountColumnIndex ? pw.FontWeight.bold : pw.FontWeight.normal,
               ),
             ),
           ),

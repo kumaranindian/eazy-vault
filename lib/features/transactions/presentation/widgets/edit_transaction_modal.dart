@@ -7,8 +7,10 @@ import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/models/failure.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../../../core/utils/error_messages.dart';
+import '../../../../core/utils/date_time_utils.dart';
 import '../../../../core/widgets/branded_dialog_title.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/month_year_picker.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/adaptive_form_dialog.dart';
@@ -21,7 +23,9 @@ import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
+import '../../domain/extensions/transaction_extensions.dart';
 import '../../domain/services/account_balance_service.dart';
+import '../../domain/utils/income_period.dart';
 import '../providers/transactions_notifier.dart';
 
 class EditTransactionModal extends ConsumerStatefulWidget {
@@ -47,6 +51,11 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
   String? _selectedAccountId;
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
+  // Income only: the month this income is reported under. Defaults to
+  // following `_selectedDate`'s month until the user explicitly picks a
+  // different one (see `_selectIncomePeriod`).
+  DateTime _incomePeriodMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  bool _incomePeriodManuallySet = false;
   bool _isLoading = false;
   TransactionModel? _existingTransaction;
   String? _loadError;
@@ -91,6 +100,10 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
         _selectedAccountId = loaded.accountId;
         _selectedCategoryId = loaded.categoryId;
         _selectedDate = loaded.date;
+        _incomePeriodMonth = loaded.incomeReportingMonth;
+        _incomePeriodManuallySet = loaded.type == TransactionType.income &&
+            loaded.incomePeriod != null &&
+            loaded.incomePeriod != IncomePeriod.of(loaded.date);
         _descriptionController.text = loaded.description ?? '';
         _vendorController.text = loaded.vendor ?? '';
         if (loaded.attachments != null &&
@@ -119,7 +132,27 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
     );
 
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        _selectedDate = picked;
+        if (!_incomePeriodManuallySet) {
+          _incomePeriodMonth = DateTime(picked.year, picked.month);
+        }
+      });
+    }
+  }
+
+  Future<void> _selectIncomePeriod() async {
+    final picked = await showMonthYearPicker(
+      context: context,
+      initialMonth: _incomePeriodMonth,
+      lastMonth: DateTime(DateTime.now().year + 1, DateTime.now().month),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _incomePeriodMonth = picked;
+        _incomePeriodManuallySet = true;
+      });
     }
   }
 
@@ -171,6 +204,9 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
       description: description.isEmpty ? null : description,
       vendor: vendor.isEmpty ? null : vendor,
       attachments: attachment.isEmpty ? null : [attachment],
+      incomePeriod: _selectedType == TransactionType.income
+          ? IncomePeriod.of(_incomePeriodMonth)
+          : null,
       updatedAt: now,
     );
 
@@ -267,8 +303,17 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                       ? null
                       : (Set<TransactionType> newSelection) {
                     setState(() {
+                      final wasIncome = _selectedType == TransactionType.income;
                       _selectedType = newSelection.first;
                       _selectedCategoryId = null;
+                      // Switching into income from expense: the reporting
+                      // period has no prior value to preserve, so follow the
+                      // credited date by default like a new income would.
+                      if (_selectedType == TransactionType.income && !wasIncome) {
+                        _incomePeriodMonth =
+                            DateTime(_selectedDate.year, _selectedDate.month);
+                        _incomePeriodManuallySet = false;
+                      }
                     });
                   },
                 ),
@@ -356,15 +401,32 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                   onTap: _isLoading ? null : _selectDate,
                   borderRadius: AppSpacing.borderRadiusLG,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Date',
-                      prefixIcon: Icon(Icons.calendar_today_outlined),
+                    decoration: InputDecoration(
+                      labelText: _selectedType == TransactionType.income ? 'Credited Date' : 'Date',
+                      prefixIcon: const Icon(Icons.calendar_today_outlined),
                     ),
                     child: Text(
                       '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                     ),
                   ),
                 ),
+                if (_selectedType == TransactionType.income) ...[
+                  AppSpacing.gapMD,
+                  InkWell(
+                    onTap: _isLoading ? null : _selectIncomePeriod,
+                    borderRadius: AppSpacing.borderRadiusLG,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Income For',
+                        prefixIcon: Icon(Icons.event_note_outlined),
+                        helperText:
+                            'Select the month this income belongs to. This can be different from the credited date.',
+                        helperMaxLines: 2,
+                      ),
+                      child: Text(DateTimeUtils.formatMonthYear(_incomePeriodMonth)),
+                    ),
+                  ),
+                ],
                 AppSpacing.gapMD,
                 AppTextField(
                   controller: _descriptionController,

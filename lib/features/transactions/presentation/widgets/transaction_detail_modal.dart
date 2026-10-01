@@ -11,6 +11,7 @@ import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/utils/date_time_utils.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../../data/models/transaction_model.dart';
@@ -188,10 +189,19 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                       AppSpacing.gapMD,
                       _buildDetailRow(
                         context,
-                        'Date',
+                        transaction.type == TransactionType.income ? 'Credited Date' : 'Date',
                         transaction.date.toFormattedDate(),
                         Icons.calendar_today_outlined,
                       ),
+                      if (transaction.type == TransactionType.income) ...[
+                        AppSpacing.gapMD,
+                        _buildDetailRow(
+                          context,
+                          'Income For',
+                          DateTimeUtils.formatMonthYear(transaction.incomeReportingMonth),
+                          Icons.event_note_outlined,
+                        ),
+                      ],
                       if (transaction.vendor != null) ...[
                         AppSpacing.gapMD,
                         _buildDetailRow(

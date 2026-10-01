@@ -1,10 +1,26 @@
 import '../../data/models/transaction_model.dart';
 import '../enums/transaction_type.dart';
 import '../models/loan_metadata.dart';
+import '../utils/income_period.dart';
 
 extension TransactionModelExtensions on TransactionModel {
   // Check if transaction is a loan type
   bool get isLoan => type.isLoanType;
+
+  /// The `YYYY-MM` month this income is reported under on monthly
+  /// dashboards: the explicit [TransactionModel.incomePeriod] when set,
+  /// otherwise the month of [TransactionModel.date] — the same fallback used
+  /// for income written before this field existed. Meaningful for income
+  /// only; every other type reports under its own transaction date.
+  String get effectiveIncomePeriod => incomePeriod ?? IncomePeriod.of(date);
+
+  /// [effectiveIncomePeriod] as the first instant of that month.
+  DateTime get incomeReportingMonth => IncomePeriod.toMonth(effectiveIncomePeriod);
+
+  /// Whether this income's reporting period was explicitly chosen to differ
+  /// from the month it was actually credited — worth calling out in the UI.
+  bool get hasDistinctIncomePeriod =>
+      type == TransactionType.income && effectiveIncomePeriod != IncomePeriod.of(date);
 
   // Check if transaction is a transfer
   bool get isTransfer => type == TransactionType.transfer;
