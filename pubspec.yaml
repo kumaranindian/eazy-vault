@@ -40,6 +40,7 @@ dependencies:
   # Export
   pdf: ^3.11.1
   printing: 5.13.1
+  excel: ^4.0.6
 
   # Utilities
   logger: ^2.3.0

@@ -310,6 +310,45 @@ class AccountBalanceService {
   static bool isEditableType(TransactionType type) =>
       type == TransactionType.income || type == TransactionType.expense;
 
+  /// The signed amount [transaction] contributes to [accountId]'s balance —
+  /// the same per-account rules [_addBalanceEffects]/[_repaymentDirection]
+  /// apply during a live write, but shaped for a single account instead of a
+  /// multi-account delta map (for account statements/reports). Always uses
+  /// the transaction's actual `date`, never `incomePeriod`.
+  ///
+  /// [linkedLoanType] is required to sign a `loanRepayment` (the direction
+  /// depends on whether the linked loan was given or taken) — the caller
+  /// resolves it, since this method only sees one transaction at a time.
+  /// Returns 0 for a transaction that doesn't touch [accountId], and for an
+  /// unresolved repayment.
+  static double signedAmountFor(
+    TransactionModel transaction,
+    String accountId, {
+    TransactionType? linkedLoanType,
+  }) {
+    switch (transaction.type) {
+      case TransactionType.income:
+      case TransactionType.loanTaken:
+        return transaction.accountId == accountId ? transaction.amount : 0;
+      case TransactionType.expense:
+      case TransactionType.loanGiven:
+        return transaction.accountId == accountId ? -transaction.amount : 0;
+      case TransactionType.transfer:
+        final metadata = transaction.metadata;
+        final toAccountId = metadata?['toAccountId'] as String?;
+        final fromAccountId =
+            metadata?['fromAccountId'] as String? ?? transaction.accountId;
+        if (accountId == fromAccountId) return -transaction.amount;
+        if (accountId == toAccountId) return transaction.amount;
+        return 0;
+      case TransactionType.loanRepayment:
+        if (transaction.accountId != accountId || linkedLoanType == null) {
+          return 0;
+        }
+        return _repaymentDirection(linkedLoanType) * transaction.amount;
+    }
+  }
+
   /// Adds the balance effect of [transaction] multiplied by [sign] (+1 to
   /// apply, -1 to revert) to [effects]. Only performs reads.
   Future<void> _collectEffects(

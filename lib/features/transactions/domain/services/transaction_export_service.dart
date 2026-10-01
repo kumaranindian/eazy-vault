@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:excel/excel.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -68,6 +69,63 @@ class TransactionExportService {
       return '"${field.replaceAll('"', '""')}"';
     }
     return field;
+  }
+
+  static final _excelHeaderStyle = CellStyle(
+    bold: true,
+    backgroundColorHex: ExcelColor.fromHexString('FF10B981'),
+    fontColorHex: ExcelColor.white,
+  );
+  static final _excelAmountStyle = CellStyle(numberFormat: NumFormat.standard_2);
+
+  /// A real `.xlsx` with one row per transaction. Amounts are numeric cells
+  /// (never ₹-prefixed strings) and dates are real Excel dates, so the
+  /// sheet stays calculator/filter-friendly in Excel.
+  Uint8List buildExcel(
+    List<TransactionModel> transactions, {
+    required Map<String, AccountModel> accountsById,
+    required Map<String, CategoryModel> categoriesById,
+  }) {
+    final excel = Excel.createExcel();
+    const sheetName = 'Transactions';
+    final defaultName = excel.getDefaultSheet();
+    if (defaultName != null && defaultName != sheetName) {
+      excel.rename(defaultName, sheetName);
+    }
+    final sheet = excel[sheetName];
+
+    const headers = [
+      'Date', 'Type', 'Category', 'Account', 'Description', 'Vendor', 'Amount', 'Income For',
+    ];
+    sheet.appendRow([for (final header in headers) TextCellValue(header)]);
+    for (var c = 0; c < headers.length; c++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0)).cellStyle = _excelHeaderStyle;
+    }
+
+    final monthFormat = DateFormat('MMM yyyy');
+    for (final transaction in transactions) {
+      sheet.appendRow([
+        DateCellValue.fromDateTime(transaction.date),
+        TextCellValue(transaction.type.displayName),
+        TextCellValue(categoriesById[transaction.categoryId]?.name ?? transaction.type.displayName),
+        TextCellValue(accountsById[transaction.accountId]?.name ?? 'Unknown'),
+        TextCellValue(transaction.description ?? ''),
+        TextCellValue(transaction.vendor ?? ''),
+        DoubleCellValue(transaction.amount),
+        transaction.type == TransactionType.income
+            ? TextCellValue(monthFormat.format(transaction.incomeReportingMonth))
+            : TextCellValue(''),
+      ]);
+      final rowIndex = sheet.maxRows - 1;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex)).cellStyle = _excelAmountStyle;
+    }
+
+    for (var c = 0; c < headers.length; c++) {
+      sheet.setColumnAutoFit(c);
+    }
+
+    final bytes = excel.save();
+    return Uint8List.fromList(bytes ?? const []);
   }
 
   /// A branded PDF report: logo + app header, a summary strip, then a

@@ -64,6 +64,28 @@ abstract class TransactionsRemoteDataSource {
     required DateTime startDate,
     required DateTime endDate,
   });
+
+  /// Income transactions whose *effective* reporting period falls in
+  /// [startPeriod]..[endPeriod] (every income transaction when both are
+  /// null), for reports that need the actual rows rather than just a total.
+  /// Same incomePeriod/date hybrid query as the aggregate methods above.
+  Future<List<TransactionModel>> getIncomeTransactions(
+    String userId, {
+    DateTime? startPeriod,
+    DateTime? endPeriod,
+  });
+
+  /// Every non-deleted transaction affecting [accountId]'s balance, dated on
+  /// or before [endDate] (all of history when null — a correct running
+  /// balance needs everything before the statement's start too), sorted
+  /// ascending by date. Covers both the account's own records (`accountId`)
+  /// and transfers where it's only the destination (`metadata.toAccountId`,
+  /// which plain `accountId` equality misses).
+  Future<List<TransactionModel>> getAccountHistory(
+    String userId,
+    String accountId, {
+    DateTime? endDate,
+  });
 }
 
 class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
@@ -98,6 +120,14 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
   /// since either query can return a document the other also matches, or
   /// one whose raw `date` is in range but whose *effective* period (an
   /// explicit, different incomePeriod) is not.
+  @override
+  Future<List<TransactionModel>> getIncomeTransactions(
+    String userId, {
+    DateTime? startPeriod,
+    DateTime? endPeriod,
+  }) =>
+      _getIncomeTransactions(userId, startDate: startPeriod, endDate: endPeriod);
+
   Future<List<TransactionModel>> _getIncomeTransactions(
     String userId, {
     DateTime? startDate,
@@ -450,6 +480,45 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get monthly totals error', error: e, stackTrace: stackTrace);
       throw ServerException(ErrorMessages.from(e, action: 'calculate monthly totals'));
+    }
+  }
+
+  @override
+  Future<List<TransactionModel>> getAccountHistory(
+    String userId,
+    String accountId, {
+    DateTime? endDate,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> ownQuery = _transactionsCollection(userId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('accountId', isEqualTo: accountId);
+      Query<Map<String, dynamic>> transferInQuery = _transactionsCollection(userId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('type', isEqualTo: TransactionType.transfer.name)
+          .where('metadata.toAccountId', isEqualTo: accountId);
+
+      if (endDate != null) {
+        final endTimestamp = Timestamp.fromDate(endDate);
+        ownQuery = ownQuery.where('date', isLessThanOrEqualTo: endTimestamp);
+        transferInQuery = transferInQuery.where('date', isLessThanOrEqualTo: endTimestamp);
+      }
+
+      final results = await Future.wait([ownQuery.get(), transferInQuery.get()]);
+
+      final merged = <String, TransactionModel>{};
+      for (final snapshot in results) {
+        for (final doc in snapshot.docs) {
+          merged[doc.id] = TransactionModel.fromFirestore(doc);
+        }
+      }
+
+      final transactions = merged.values.toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+      return transactions;
+    } catch (e, stackTrace) {
+      LoggerService.error('Get account history error', error: e, stackTrace: stackTrace);
+      throw ServerException(ErrorMessages.from(e, action: 'load account history'));
     }
   }
 }

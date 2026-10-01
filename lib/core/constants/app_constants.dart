@@ -46,6 +46,8 @@ class RouteConstants {
   static const String transactionDetail = '/transactions/:id';
   static const String editTransaction = '/transactions/:id/edit';
 
+  static const String reports = '/reports';
+
   static const String settings = '/settings';
   static const String profile = '/profile';
 }

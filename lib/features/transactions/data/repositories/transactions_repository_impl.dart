@@ -303,4 +303,54 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       );
     }
   }
+
+  @override
+  Future<({List<TransactionModel> transactions, Failure? failure})> getIncomeTransactions(
+    String userId, {
+    DateTime? startPeriod,
+    DateTime? endPeriod,
+  }) async {
+    try {
+      final transactions = await _remoteDataSource.getIncomeTransactions(
+        userId,
+        startPeriod: startPeriod,
+        endPeriod: endPeriod,
+      );
+      return (transactions: transactions, failure: null);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return (transactions: <TransactionModel>[], failure: Failure.serverError(e.message));
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return (
+        transactions: <TransactionModel>[],
+        failure: Failure.unknownError(ErrorMessages.from(e)),
+      );
+    }
+  }
+
+  @override
+  Future<({List<TransactionModel> transactions, Failure? failure})> getAccountHistory(
+    String userId,
+    String accountId, {
+    DateTime? endDate,
+  }) async {
+    try {
+      final transactions = await _remoteDataSource.getAccountHistory(
+        userId,
+        accountId,
+        endDate: endDate,
+      );
+      return (transactions: transactions, failure: null);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return (transactions: <TransactionModel>[], failure: Failure.serverError(e.message));
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return (
+        transactions: <TransactionModel>[],
+        failure: Failure.unknownError(ErrorMessages.from(e)),
+      );
+    }
+  }
 }
