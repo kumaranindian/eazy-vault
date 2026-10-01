@@ -19,6 +19,11 @@ class TransactionModel with _$TransactionModel {
     String? vendor,
     List<String>? attachments,
     Map<String, dynamic>? metadata,
+    // Income only: the `YYYY-MM` reporting month, independent of `date` (the
+    // actual credited/money-movement date). Null means "use date's month" —
+    // the fallback for income written before this field existed. See
+    // `IncomePeriod` and `TransactionModelExtensions.effectiveIncomePeriod`.
+    String? incomePeriod,
     required DateTime createdAt,
     required DateTime updatedAt,
     required String createdBy,
@@ -44,6 +49,7 @@ class TransactionModel with _$TransactionModel {
       vendor: data['vendor'] as String?,
       attachments: (data['attachments'] as List<dynamic>?)?.cast<String>(),
       metadata: data['metadata'] as Map<String, dynamic>?,
+      incomePeriod: data['incomePeriod'] as String?,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
       createdBy: data['createdBy'] as String,
@@ -64,6 +70,7 @@ extension TransactionModelExtension on TransactionModel {
       'vendor': vendor,
       'attachments': attachments,
       'metadata': metadata,
+      'incomePeriod': incomePeriod,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'createdBy': createdBy,

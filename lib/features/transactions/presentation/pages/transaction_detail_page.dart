@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../data/models/transaction_model.dart';
+import '../../domain/enums/transaction_type.dart';
 import '../../domain/extensions/transaction_extensions.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/extensions/double_extensions.dart';
+import '../../../../core/utils/date_time_utils.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
@@ -224,9 +226,17 @@ class TransactionDetailPage extends ConsumerWidget {
                       const Divider(height: 24),
                       _buildInfoRow(
                         context,
-                        'Date',
+                        transaction.type == TransactionType.income ? 'Credited Date' : 'Date',
                         transaction.date.toFormattedDate(),
                       ),
+                      if (transaction.type == TransactionType.income) ...[
+                        const Divider(height: 24),
+                        _buildInfoRow(
+                          context,
+                          'Income For',
+                          DateTimeUtils.formatMonthYear(transaction.incomeReportingMonth),
+                        ),
+                      ],
                       if (transaction.description != null) ...[
                         const Divider(height: 24),
                         _buildInfoRow(

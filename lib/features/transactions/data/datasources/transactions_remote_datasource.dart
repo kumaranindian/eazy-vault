@@ -5,6 +5,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../domain/enums/transaction_type.dart';
+import '../../domain/extensions/transaction_extensions.dart';
+import '../../domain/utils/income_period.dart';
 import '../models/transaction_model.dart';
 import '../../../../core/utils/error_messages.dart';
 
@@ -35,6 +37,9 @@ abstract class TransactionsRemoteDataSource {
     DateTime? endDate,
   });
 
+  /// Expense is bucketed by its actual date; income by its reporting period
+  /// (`incomePeriod`, falling back to `date`'s month) — see
+  /// `TransactionModelExtensions.effectiveIncomePeriod`.
   Future<Map<String, ({double income, double expense})>> getTotalsByAccount(
     String userId, {
     DateTime? startDate,
@@ -51,7 +56,9 @@ abstract class TransactionsRemoteDataSource {
   });
 
   /// Income/expense totals per calendar month (keyed by the first day of the
-  /// month, local time) for transactions dated in [startDate]..[endDate].
+  /// month, local time). Expense is bucketed by its actual date in
+  /// [startDate]..[endDate]; income by its reporting period (`incomePeriod`,
+  /// falling back to `date`'s month) in that same window.
   Future<Map<DateTime, ({double income, double expense})>> getMonthlyTotals(
     String userId, {
     required DateTime startDate,
@@ -70,6 +77,67 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
         .collection(AppConstants.userCollection)
         .doc(userId)
         .collection(AppConstants.transactionsCollection);
+  }
+
+  /// Non-deleted income transactions whose *effective* reporting month
+  /// (`TransactionModelExtensions.effectiveIncomePeriod`) falls in
+  /// [startDate]..[endDate] (both required; otherwise every income
+  /// transaction is returned, matching the old unfiltered behavior).
+  ///
+  /// Monthly income reporting uses `incomePeriod`, not the credited `date`
+  /// (see CLAUDE.md "Income Reporting Period"), so this combines two
+  /// indexed queries instead of one plain date-range scan:
+  /// - `incomePeriod` in range: catches income with an explicit reporting
+  ///   period, however far that period is from its credited date.
+  /// - `date` in range: catches income with no explicit `incomePeriod`
+  ///   (legacy records from before this field existed, and anything
+  ///   auto-generated without one) — for those, the effective period is the
+  ///   credited date's own month, which is covered by this query whenever
+  ///   that month falls in the window.
+  /// Results are deduped by document id and re-filtered by effective period,
+  /// since either query can return a document the other also matches, or
+  /// one whose raw `date` is in range but whose *effective* period (an
+  /// explicit, different incomePeriod) is not.
+  Future<List<TransactionModel>> _getIncomeTransactions(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    if (startDate == null || endDate == null) {
+      final snapshot = await _transactionsCollection(userId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('type', isEqualTo: TransactionType.income.name)
+          .get();
+      return snapshot.docs.map((doc) => TransactionModel.fromFirestore(doc)).toList();
+    }
+
+    final startKey = IncomePeriod.of(startDate);
+    final endKey = IncomePeriod.of(endDate);
+
+    final byPeriod = await _transactionsCollection(userId)
+        .where(AppConstants.isDeletedField, isEqualTo: false)
+        .where('type', isEqualTo: TransactionType.income.name)
+        .where('incomePeriod', isGreaterThanOrEqualTo: startKey)
+        .where('incomePeriod', isLessThanOrEqualTo: endKey)
+        .get();
+
+    final byDate = await _transactionsCollection(userId)
+        .where(AppConstants.isDeletedField, isEqualTo: false)
+        .where('type', isEqualTo: TransactionType.income.name)
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+        .get();
+
+    final merged = <String, TransactionModel>{};
+    for (final doc in [...byPeriod.docs, ...byDate.docs]) {
+      merged[doc.id] = TransactionModel.fromFirestore(doc);
+    }
+
+    return merged.values
+        .where((t) =>
+            t.effectiveIncomePeriod.compareTo(startKey) >= 0 &&
+            t.effectiveIncomePeriod.compareTo(endKey) <= 0)
+        .toList();
   }
 
   @override
@@ -199,6 +267,17 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     try {
       LoggerService.info('Calculating total for type: ${type.name}');
 
+      if (type == TransactionType.income) {
+        final income = await _getIncomeTransactions(
+          userId,
+          startDate: startDate,
+          endDate: endDate,
+        );
+        final total = income.fold<double>(0, (sum, t) => sum + t.amount);
+        LoggerService.info('Total for ${type.name}: $total');
+        return total;
+      }
+
       Query<Map<String, dynamic>> query = _transactionsCollection(userId)
           .where(AppConstants.isDeletedField, isEqualTo: false)
           .where('type', isEqualTo: type.name);
@@ -235,8 +314,11 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     try {
       LoggerService.info('Calculating totals by account');
 
+      // Expense keeps using the actual expense date. Income is aggregated
+      // separately below by its reporting period instead of `date`.
       Query<Map<String, dynamic>> query = _transactionsCollection(userId)
-          .where(AppConstants.isDeletedField, isEqualTo: false);
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('type', isEqualTo: TransactionType.expense.name);
 
       if (startDate != null) {
         query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
@@ -254,17 +336,23 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
         final data = doc.data();
         final accountId = data['accountId'] as String?;
         final amount = (data['amount'] as num?)?.toDouble() ?? 0;
-        final type = data['type'] as String?;
 
-        if (accountId != null && type != null) {
+        if (accountId != null) {
           final current = accountTotals[accountId] ?? (income: 0.0, expense: 0.0);
-          
-          if (type == TransactionType.income.name) {
-            accountTotals[accountId] = (income: current.income + amount, expense: current.expense);
-          } else if (type == TransactionType.expense.name) {
-            accountTotals[accountId] = (income: current.income, expense: current.expense + amount);
-          }
+          accountTotals[accountId] = (income: current.income, expense: current.expense + amount);
         }
+      }
+
+      final income = await _getIncomeTransactions(
+        userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      for (final transaction in income) {
+        final current =
+            accountTotals[transaction.accountId] ?? (income: 0.0, expense: 0.0);
+        accountTotals[transaction.accountId] =
+            (income: current.income + transaction.amount, expense: current.expense);
       }
 
       LoggerService.info('Calculated totals for ${accountTotals.length} accounts');
@@ -325,28 +413,39 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     required DateTime endDate,
   }) async {
     try {
-      final querySnapshot = await _transactionsCollection(userId)
+      final totals = <DateTime, ({double income, double expense})>{};
+
+      // Expense keeps bucketing by its actual date.
+      final expenseSnapshot = await _transactionsCollection(userId)
           .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('type', isEqualTo: TransactionType.expense.name)
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
           .get();
 
-      final totals = <DateTime, ({double income, double expense})>{};
-      for (final doc in querySnapshot.docs) {
+      for (final doc in expenseSnapshot.docs) {
         final data = doc.data();
-        final type = data['type'] as String?;
         final amount = (data['amount'] as num?)?.toDouble() ?? 0;
         final date = (data['date'] as Timestamp?)?.toDate();
         if (date == null) continue;
 
         final month = DateTime(date.year, date.month);
         final current = totals[month] ?? (income: 0.0, expense: 0.0);
-        if (type == TransactionType.income.name) {
-          totals[month] = (income: current.income + amount, expense: current.expense);
-        } else if (type == TransactionType.expense.name) {
-          totals[month] = (income: current.income, expense: current.expense + amount);
-        }
+        totals[month] = (income: current.income, expense: current.expense + amount);
       }
+
+      // Income buckets by its reporting period instead.
+      final income = await _getIncomeTransactions(
+        userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      for (final transaction in income) {
+        final month = transaction.incomeReportingMonth;
+        final current = totals[month] ?? (income: 0.0, expense: 0.0);
+        totals[month] = (income: current.income + transaction.amount, expense: current.expense);
+      }
+
       return totals;
     } catch (e, stackTrace) {
       LoggerService.error('Get monthly totals error', error: e, stackTrace: stackTrace);

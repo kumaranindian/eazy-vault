@@ -132,7 +132,9 @@ users/{uid}/accounts/{id}          # name, type, openingBalance, currentBalance,
                                    # isActive, description, createdAt, updatedAt, createdBy, isDeleted
 users/{uid}/categories/{id}        # name, type, color, icon, description, isDefault, isActive, + audit fields
 users/{uid}/transactions/{id}      # type, amount, accountId, categoryId, date(Timestamp), description, vendor,
-                                   # attachments(List<String>, unused), metadata(Map), + audit fields
+                                   # attachments(List<String>, unused), metadata(Map), incomePeriod(String?,
+                                   # income only — see §21 "Income Reporting Period vs Money Movement Date"),
+                                   # + audit fields
 ```
 (`profile` and `settings` sub-paths are allowed by rules and named in `AppConstants` but no code writes them.)
 
@@ -272,6 +274,8 @@ Composite indexes all start with `isDeleted ASC`: transactions on `date` (asc/de
   - `test/widget/transfer_transaction_form_test.dart` — drives the real transfer form (UI → provider → service) and checks both balances; overrides `firebaseFirestoreProvider` and `currentUserProvider`.
   - `test/widget_test.dart` — `Validators` (name kept from the template).
   - `account_balance_service_test.dart` also covers `recalculateBalances` and repairing transfers that lost their destination.
+  - `test/unit/income_period_test.dart` — `IncomePeriod` format/parse and the `effectiveIncomePeriod`/`incomeReportingMonth`/`hasDistinctIncomePeriod` fallback logic (pure Dart, no Firestore).
+  - `test/unit/income_reporting_test.dart` — the income-reporting-period business rule end to end against `fake_cloud_firestore`: cross-month and same-month income, the year-boundary case, the legacy-record fallback, editing `incomePeriod` without touching the account balance, and deleting an income correctly affecting both.
 - `test/helpers/` provides `MockFirebase.getFakeFirestore()` (re-exports `FakeFirebaseFirestore`), `getMockAuth()`, `seedFirestore(firestore, uid)` and `TestHelpers.testUserId`. Seed: `account-1` (cash, 10000), `account-2` (savings, 50000), `category-1` (expense), `category-2` (income), `transaction-1` (expense 500 on `account-1`, treated as already reflected in the seeded balance). Import app code as `package:eazyvault/...`.
 - No Firestore rules tests and no widget/integration tests yet.
 - Commands: `flutter test`, `flutter test test/unit/account_balance_service_test.dart`, `flutter test --plain-name "should increase balance"`.
@@ -327,7 +331,7 @@ firebase deploy --only storage
 - Email/password + Google auth, forgot password, auth-guarded routing, splash.
 - Accounts: CRUD (soft delete), detail page, color/icon pickers, total balance.
 - Categories: CRUD, income/expense types, default category seeding (menu action / empty-state button).
-- Transactions: income/expense CRUD with balance updates, paginated list, detail modal/page.
+- Transactions: income/expense CRUD with balance updates, paginated list, detail modal/page. Income carries an optional reporting period (`incomePeriod`, "Income For" in the UI) distinct from its credited date — see §21 "Income Reporting Period vs Money Movement Date".
 - Transfers and loans (given/taken/repayment) via dashboard dialogs; `LoanService` status tracking.
 - Dashboard: total balance, current-month income/expense, per-account financials chart, recent transactions stream, quick actions, loans summary, upcoming bills (derived from active loans' due dates), dark mode.
 
@@ -356,6 +360,7 @@ firebase deploy --only storage
 - `metadata` map shape for loans/transfers (stored data depends on `LoanMetadata`/`TransferMetadata` JSON keys).
 - Enum `.name` strings (persisted in Firestore) — renaming an enum value breaks existing documents.
 - Sentinel category ids `'transfer'` and `'loan'`.
+- The `AccountBalanceService` / `date` vs. `incomePeriod` split (§21 "Income Reporting Period vs Money Movement Date") — `AccountBalanceService` must never read `incomePeriod`, and monthly income reporting must never switch back to `date`.
 
 ## 21. Important Implementation Notes
 
@@ -368,6 +373,20 @@ firebase deploy --only storage
 - **Overdue** is computed, never stored: `TransactionModelExtensions.isOverdue` / `LoanService.getOverdueLoans` = not completed and `dueDate` in the past. Nothing writes `LoanStatus.overdue`; it only appears in UI switch statements.
 - "Active" loans = not `completed`. The dashboard's upcoming bills come from active loans' due dates.
 - Categories: seeding runs only when the user has no categories. The income/expense forms load categories filtered by the matching `CategoryType`.
+
+### Income Reporting Period vs Money Movement Date
+
+Two distinct dates can apply to an income transaction, and the codebase keeps them strictly separate:
+
+- **Actual Money Movement Date** (`TransactionModel.date`, labeled "Credited Date" for income in the UI): when the money actually hit the account. This is the **only** date `AccountBalanceService` ever looks at — balances, `recalculateBalances`, and transfer/loan math are completely unaware of `incomePeriod`. Never change this to solve a reporting-month problem.
+- **Income Reporting Period** (`TransactionModel.incomePeriod`, a `YYYY-MM` string, income only; labeled "Income For" in the UI): the calendar month this income counts toward on monthly dashboards and charts. Independent of `date` — e.g. money credited 30 Sep can be reported as October income. `null` means "use `date`'s month", which is also the automatic fallback for every income record written before this field existed (no migration needed). Use `TransactionModelExtensions.effectiveIncomePeriod` / `.incomeReportingMonth` rather than reading `incomePeriod` directly — they apply that fallback.
+
+Rules this split depends on, enforced in `TransactionsRemoteDataSourceImpl`:
+- Monthly income totals (`getTotalByType(..., TransactionType.income)`, the income side of `getTotalsByAccount` and `getMonthlyTotals`) query by `effectiveIncomePeriod`, not `date`. Expense totals, the transaction list, search, and every other filter are unaffected and still use `date`.
+- The query is a merge of two indexed Firestore queries — `incomePeriod` range (explicit periods, wherever their credited date falls) and `date` range (the fallback for records with no `incomePeriod`) — deduped and re-filtered client-side by effective period. This avoids a full-collection scan while still covering legacy data with no migration. See `TransactionsRemoteDataSourceImpl._getIncomeTransactions`.
+- `incomePeriod` has its own composite index (`isDeleted + type + incomePeriod`) in `firestore.indexes.json`.
+- The Add/Edit Income forms (`add_edit_transaction_page.dart`, `add_transaction_dialog.dart`, `edit_transaction_modal.dart` — all three dashboard-modal and routed surfaces) default "Income For" to the credited date's month and keep following it if the credited date changes, *unless* the user has explicitly picked a different "Income For" month, in which case it stays fixed. A `showMonthYearPicker` (`core/widgets/month_year_picker.dart`) backs the "Income For" field — there's no built-in Flutter month picker.
+- Never add a second place that re-derives monthly income/expense/net-savings/balance; the data source methods above are the only source of truth those dashboard providers and charts read from.
 
 - Every money-moving change must answer: which account(s) change, by how much, in which direction, and on create **and** update **and** delete. That logic lives only in `AccountBalanceService._collectEffects`; change it there and extend `test/unit/account_balance_service_test.dart`.
 - Firestore `runTransaction` requires all reads before writes — keep that order in services.

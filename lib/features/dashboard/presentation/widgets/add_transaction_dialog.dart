@@ -5,8 +5,10 @@ import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/models/failure.dart';
 import '../../../../core/services/logger_service.dart';
 import '../../../../core/utils/error_messages.dart';
+import '../../../../core/utils/date_time_utils.dart';
 import '../../../../core/widgets/branded_dialog_title.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/month_year_picker.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -20,6 +22,7 @@ import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../../../transactions/data/models/transaction_model.dart';
 import '../../../transactions/domain/enums/transaction_type.dart';
+import '../../../transactions/domain/utils/income_period.dart';
 import '../../../transactions/presentation/providers/transactions_notifier.dart';
 
 class AddTransactionDialog extends ConsumerStatefulWidget {
@@ -46,6 +49,11 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
   String? _selectedAccountId;
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
+  // Income only: the month this income is reported under. Defaults to
+  // following `_selectedDate`'s month until the user explicitly picks a
+  // different one (see `_selectIncomePeriod`).
+  DateTime _incomePeriodMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  bool _incomePeriodManuallySet = false;
   bool _isLoading = false;
 
   @override
@@ -66,7 +74,27 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
     );
 
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        _selectedDate = picked;
+        if (!_incomePeriodManuallySet) {
+          _incomePeriodMonth = DateTime(picked.year, picked.month);
+        }
+      });
+    }
+  }
+
+  Future<void> _selectIncomePeriod() async {
+    final picked = await showMonthYearPicker(
+      context: context,
+      initialMonth: _incomePeriodMonth,
+      lastMonth: DateTime(DateTime.now().year + 1, DateTime.now().month),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _incomePeriodMonth = picked;
+        _incomePeriodManuallySet = true;
+      });
     }
   }
 
@@ -115,6 +143,9 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
       attachments: _attachmentController.text.trim().isEmpty
           ? null
           : [_attachmentController.text.trim()],
+      incomePeriod: widget.type == TransactionType.income
+          ? IncomePeriod.of(_incomePeriodMonth)
+          : null,
       createdAt: now,
       updatedAt: now,
       createdBy: user.uid,
@@ -262,15 +293,34 @@ class _AddTransactionDialogState extends ConsumerState<AddTransactionDialog> {
                       onTap: _isLoading ? null : _selectDate,
                       borderRadius: AppSpacing.borderRadiusLG,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Date',
-                          prefixIcon: Icon(Icons.calendar_today_outlined),
+                        decoration: InputDecoration(
+                          labelText: widget.type == TransactionType.income
+                              ? 'Credited Date'
+                              : 'Date',
+                          prefixIcon: const Icon(Icons.calendar_today_outlined),
                         ),
                         child: Text(
                           '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                         ),
                       ),
                     ),
+                    if (widget.type == TransactionType.income) ...[
+                      AppSpacing.gapMD,
+                      InkWell(
+                        onTap: _isLoading ? null : _selectIncomePeriod,
+                        borderRadius: AppSpacing.borderRadiusLG,
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Income For',
+                            prefixIcon: Icon(Icons.event_note_outlined),
+                            helperText:
+                                'Select the month this income belongs to. This can be different from the credited date.',
+                            helperMaxLines: 2,
+                          ),
+                          child: Text(DateTimeUtils.formatMonthYear(_incomePeriodMonth)),
+                        ),
+                      ),
+                    ],
                     AppSpacing.gapMD,
                     AppTextField(
                       controller: _descriptionController,
