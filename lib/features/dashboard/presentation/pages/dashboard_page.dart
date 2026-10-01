@@ -33,6 +33,11 @@ import '../widgets/account_balances_card.dart';
 import '../widgets/loans_summary_card.dart';
 import '../widgets/upcoming_bills_widget.dart';
 import '../widgets/spending_trends_chart.dart';
+import '../widgets/category_breakdown_chart.dart';
+import '../widgets/budgets_summary_card.dart';
+import '../../../budgets/presentation/widgets/budgets_modal.dart';
+import '../../../recurring_transactions/presentation/providers/recurring_catch_up_provider.dart';
+import '../../../recurring_transactions/presentation/widgets/recurring_transactions_modal.dart';
 import '../../data/models/account_financials.dart';
 import '../../../transactions/presentation/widgets/transfer_transaction_form.dart';
 import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
@@ -49,6 +54,20 @@ class DashboardPage extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final accountFinancialsAsync = ref.watch(accountFinancialsProvider);
     final isCompactHeight = context.isCompactHeight;
+
+    // Runs once per session: generates any transactions due recurring rules
+    // owe, then tells the user how many were added.
+    ref.listen<AsyncValue<int>>(recurringTransactionsCatchUpProvider, (previous, next) {
+      next.whenOrNull(
+        data: (generatedCount) {
+          if (generatedCount > 0) {
+            context.showSuccessSnackBar(
+              '$generatedCount recurring transaction${generatedCount > 1 ? 's' : ''} added',
+            );
+          }
+        },
+      );
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -139,7 +158,7 @@ class DashboardPage extends ConsumerWidget {
                           // 2 columns on phones, one row on wide screens.
                           ResponsiveGrid(
                             minItemWidth: 120,
-                            maxColumns: 7,
+                            maxColumns: 9,
                             children: [
                               QuickActionButton(
                                 label: 'Add Income',
@@ -186,6 +205,18 @@ class DashboardPage extends ConsumerWidget {
                                 icon: Icons.category_outlined,
                                 color: Colors.purple,
                                 onTap: () => _showCategoriesModal(context),
+                              ),
+                              QuickActionButton(
+                                label: 'Budgets',
+                                icon: Icons.savings_outlined,
+                                color: Colors.teal,
+                                onTap: () => _showBudgetsModal(context),
+                              ),
+                              QuickActionButton(
+                                label: 'Recurring',
+                                icon: Icons.repeat,
+                                color: Colors.indigo,
+                                onTap: () => _showRecurringModal(context),
                               ),
                             ],
                           ),
@@ -241,12 +272,16 @@ class DashboardPage extends ConsumerWidget {
                             runSpacing: AppSpacing.xl,
                             children: [
                               LoansSummaryCard(),
+                              BudgetsSummaryCard(),
                               UpcomingBillsWidget(),
                             ],
                           ),
                           AppSpacing.gapXL,
                           // Spending Trends Chart
                           const SpendingTrendsChart(),
+                          AppSpacing.gapXL,
+                          // Category Breakdown Chart
+                          const CategoryBreakdownChart(),
                           AppSpacing.gapXL,
                           Row(
                             children: [
@@ -348,6 +383,20 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
+  void _showBudgetsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const BudgetsModal(),
+    );
+  }
+
+  void _showRecurringModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const RecurringTransactionsModal(),
+    );
+  }
+
   void _showTransactionDetailModal(BuildContext context, String transactionId) {
     showDialog(
       context: context,
@@ -400,6 +449,29 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showTransferDialog(BuildContext context) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    if (isMobile) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: const Text('Transfer')),
+            body: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: AppSpacing.paddingMD,
+                child: TransferTransactionForm(
+                  onSuccess: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => FormDialog(
@@ -413,6 +485,31 @@ class DashboardPage extends ConsumerWidget {
   }
 
   void _showLoanDialog(BuildContext context, TransactionType loanType) {
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+    final title = loanType == TransactionType.loanGiven ? 'Lend Money' : 'Borrow Money';
+
+    if (isMobile) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(title: Text(title)),
+            body: SafeArea(
+              top: false,
+              child: Padding(
+                padding: AppSpacing.paddingMD,
+                child: LoanTransactionForm(
+                  loanType: loanType,
+                  onSuccess: () => Navigator.of(context).pop(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => FormDialog(

@@ -41,6 +41,15 @@ abstract class TransactionsRemoteDataSource {
     DateTime? endDate,
   });
 
+  /// Expense totals per category id for transactions dated in
+  /// [startDate]..[endDate]. Income and transfer/loan transactions (which use
+  /// the sentinel `'transfer'`/`'loan'` category ids) are excluded.
+  Future<Map<String, double>> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  });
+
   /// Income/expense totals per calendar month (keyed by the first day of the
   /// month, local time) for transactions dated in [startDate]..[endDate].
   Future<Map<DateTime, ({double income, double expense})>> getMonthlyTotals(
@@ -263,6 +272,49 @@ class TransactionsRemoteDataSourceImpl implements TransactionsRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get totals by account error', error: e, stackTrace: stackTrace);
       throw ServerException(ErrorMessages.from(e, action: 'calculate totals by account'));
+    }
+  }
+
+  @override
+  Future<Map<String, double>> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      LoggerService.info('Calculating expense totals by category');
+
+      Query<Map<String, dynamic>> query = _transactionsCollection(userId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .where('type', isEqualTo: TransactionType.expense.name);
+
+      if (startDate != null) {
+        query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      }
+
+      if (endDate != null) {
+        query = query.where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+      }
+
+      final querySnapshot = await query.get();
+
+      final categoryTotals = <String, double>{};
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final categoryId = data['categoryId'] as String?;
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+
+        if (categoryId != null) {
+          categoryTotals[categoryId] = (categoryTotals[categoryId] ?? 0) + amount;
+        }
+      }
+
+      LoggerService.info('Calculated expense totals for ${categoryTotals.length} categories');
+      return categoryTotals;
+    } catch (e, stackTrace) {
+      LoggerService.error('Get expense totals by category error', error: e, stackTrace: stackTrace);
+      throw ServerException('Failed to calculate expense totals by category: ${e.toString()}');
     }
   }
 

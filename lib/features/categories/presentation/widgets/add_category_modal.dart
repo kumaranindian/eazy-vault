@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/adaptive_form_dialog.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../accounts/presentation/widgets/color_picker_dialog.dart';
 import '../../../accounts/presentation/widgets/icon_picker_dialog.dart';
@@ -11,8 +12,6 @@ import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/models/category_model.dart';
 import '../../domain/enums/category_type.dart';
 import '../providers/categories_notifier.dart';
-import '../../../../core/widgets/branded_dialog_title.dart';
-import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/utils/error_messages.dart';
 
 class AddCategoryModal extends ConsumerStatefulWidget {
@@ -143,22 +142,13 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: BrandedDialogTitle(
-        title: const Text('Add Category'),
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-            tooltip: 'Close',
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: Breakpoints.formMaxWidth,
-        child: Form(
+    return AdaptiveFormDialog(
+      title: 'Add Category',
+      isLoading: _isLoading,
+      content: Form(
           key: _formKey,
           child: SingleChildScrollView(
+            padding: AppSpacing.paddingMD,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,7 +249,6 @@ class _AddCategoryModalState extends ConsumerState<AddCategoryModal> {
             ),
           ),
         ),
-      ),
       actions: [
         Column(
           mainAxisSize: MainAxisSize.min,

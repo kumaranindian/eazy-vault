@@ -11,6 +11,7 @@ import '../../../../core/widgets/branded_dialog_title.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/adaptive_form_dialog.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
@@ -227,32 +228,23 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
 
     final isReady = _existingTransaction != null;
 
-    return AlertDialog(
-      title: BrandedDialogTitle(
-        title: const Text('Edit Transaction'),
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-            tooltip: 'Close',
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: Breakpoints.formMaxWidth,
-        child: _loadError != null
-            ? Text(
-                _loadError!,
-                style: TextStyle(color: context.colorScheme.error),
-              )
-            : !isReady
-                ? const Padding(
-                    padding: AppSpacing.paddingXL,
-                    child: LoadingIndicator(size: 32),
-                  )
-                : Form(
+    return AdaptiveFormDialog(
+      title: 'Edit Transaction',
+      isLoading: _isLoading,
+      content: _loadError != null
+          ? Text(
+              _loadError!,
+              style: TextStyle(color: context.colorScheme.error),
+            )
+          : !isReady
+              ? const Padding(
+                  padding: AppSpacing.paddingXL,
+                  child: LoadingIndicator(size: 32),
+                )
+              : Form(
           key: _formKey,
           child: SingleChildScrollView(
+            padding: AppSpacing.paddingMD,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,7 +408,6 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
             ),
           ),
         ),
-      ),
       actions: [
         Column(
           mainAxisSize: MainAxisSize.min,

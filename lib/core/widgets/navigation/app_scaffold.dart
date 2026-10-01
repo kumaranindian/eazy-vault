@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../constants/app_constants.dart';
 import 'bottom_nav_bar.dart';
@@ -6,7 +7,7 @@ import 'navigation_rail_sidebar.dart';
 
 /// Persistent responsive chrome for the four top-level destinations
 /// (Dashboard/Transactions/Accounts/Categories), wired in via a `ShellRoute`
-/// in `app_router.dart`. The selected tab is derived from [currentPath]
+/// in `app_router.dart`. The selected tab is derived from [location]
 /// (the current route) rather than kept as local state, so it stays correct
 /// across deep links and browser back/forward.
 ///
@@ -24,12 +25,21 @@ import 'navigation_rail_sidebar.dart';
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
-    required this.currentPath,
+    required this.location,
     required this.child,
   });
 
-  final String currentPath;
+  final String location;
   final Widget child;
+
+  // Kept in the same order as `_destinations`; must match the order the
+  // nav widgets navigate with (see NavigationRailSidebar/BottomNavBar).
+  static const List<String> _routes = [
+    RouteConstants.dashboard,
+    RouteConstants.transactions,
+    RouteConstants.accounts,
+    RouteConstants.categories,
+  ];
 
   static const List<NavigationDestination> _destinations = [
     NavigationDestination(
@@ -54,18 +64,13 @@ class AppScaffold extends StatelessWidget {
     ),
   ];
 
-  // Kept in the same order as `_destinations`; must match the order the
-  // nav widgets navigate with (see NavigationRailSidebar/BottomNavBar).
-  static const List<String> _routes = [
-    RouteConstants.dashboard,
-    RouteConstants.transactions,
-    RouteConstants.accounts,
-    RouteConstants.categories,
-  ];
-
   int get _selectedIndex {
-    final index = _routes.indexOf(currentPath);
+    final index = _routes.indexOf(location);
     return index == -1 ? 0 : index;
+  }
+
+  void _onDestinationSelected(BuildContext context, int index) {
+    context.go(_routes[index]);
   }
 
   // Match NavigationRail's own Material 3 `minWidth`/`minExtendedWidth`
@@ -91,7 +96,8 @@ class AppScaffold extends StatelessWidget {
         bottomNavigationBar: BottomNavBar(
           destinations: _destinations,
           selectedIndex: selectedIndex,
-          onDestinationSelected: (_) {},
+          onDestinationSelected: (index) =>
+              _onDestinationSelected(context, index),
         ),
       );
     }
@@ -106,7 +112,8 @@ class AppScaffold extends StatelessWidget {
               child: NavigationRailSidebar(
                 destinations: _destinations,
                 selectedIndex: selectedIndex,
-                onDestinationSelected: (_) {},
+                onDestinationSelected: (index) =>
+                    _onDestinationSelected(context, index),
                 extended: false,
               ),
             ),
@@ -126,7 +133,8 @@ class AppScaffold extends StatelessWidget {
             child: NavigationRailSidebar(
               destinations: _destinations,
               selectedIndex: selectedIndex,
-              onDestinationSelected: (_) {},
+              onDestinationSelected: (index) =>
+                  _onDestinationSelected(context, index),
               extended: true,
             ),
           ),

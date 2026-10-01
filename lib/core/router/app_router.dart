@@ -92,7 +92,7 @@ GoRouter appRouter(AppRouterRef ref) {
       ),
       ShellRoute(
         builder: (context, state, child) => AppScaffold(
-          currentPath: state.matchedLocation,
+          location: state.matchedLocation,
           child: child,
         ),
         routes: [

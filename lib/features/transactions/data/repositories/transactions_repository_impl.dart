@@ -251,6 +251,28 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   @override
+  Future<({Map<String, double> totals, Failure? failure})> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final totals = await _remoteDataSource.getExpenseTotalsByCategory(
+        userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      return (totals: totals, failure: null);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return (totals: <String, double>{}, failure: Failure.serverError(e.message));
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return (totals: <String, double>{}, failure: Failure.unknownError(e.toString()));
+    }
+  }
+
+  @override
   Future<
       ({
         Map<DateTime, ({double income, double expense})> totals,

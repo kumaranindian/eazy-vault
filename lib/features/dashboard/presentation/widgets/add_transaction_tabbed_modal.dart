@@ -33,6 +33,31 @@ class _AddTransactionTabbedModalState extends ConsumerState<AddTransactionTabbed
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.sizeOf(context).height;
+    final isMobile = Breakpoints.isMobile(MediaQuery.sizeOf(context).width);
+
+    if (isMobile) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Add Transaction'),
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(icon: Icon(Icons.arrow_upward), text: 'Income'),
+                Tab(icon: Icon(Icons.arrow_downward), text: 'Expense'),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: const [
+              AddTransactionDialog(type: TransactionType.income, showDialog: false),
+              AddTransactionDialog(type: TransactionType.expense, showDialog: false),
+            ],
+          ),
+        ),
+      );
+    }
 
     // Dialog (not AlertDialog) so the tab view can take a bounded height
     // that follows the current viewport: rotation, resize and the keyboard

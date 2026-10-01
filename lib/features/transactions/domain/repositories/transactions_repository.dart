@@ -58,6 +58,12 @@ abstract class TransactionsRepository {
     DateTime? endDate,
   });
 
+  Future<({Map<String, double> totals, Failure? failure})> getExpenseTotalsByCategory(
+    String userId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  });
+
   Future<({Map<DateTime, ({double income, double expense})> totals, Failure? failure})> getMonthlyTotals(
     String userId, {
     required DateTime startDate,

@@ -6,6 +6,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/adaptive_form_dialog.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/models/account_model.dart';
@@ -13,8 +14,6 @@ import '../../domain/enums/account_type.dart';
 import '../providers/accounts_notifier.dart';
 import '../widgets/color_picker_dialog.dart';
 import '../widgets/icon_picker_dialog.dart';
-import '../../../../core/widgets/branded_dialog_title.dart';
-import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/utils/error_messages.dart';
 
 class AddAccountModal extends ConsumerStatefulWidget {
@@ -150,22 +149,13 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: BrandedDialogTitle(
-        title: const Text('Add Account'),
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-            tooltip: 'Close',
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: Breakpoints.formMaxWidth,
-        child: Form(
+    return AdaptiveFormDialog(
+      title: 'Add Account',
+      isLoading: _isLoading,
+      content: Form(
           key: _formKey,
           child: SingleChildScrollView(
+            padding: AppSpacing.paddingMD,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,7 +276,6 @@ class _AddAccountModalState extends ConsumerState<AddAccountModal> {
             ),
           ),
         ),
-      ),
       actions: [
         Column(
           mainAxisSize: MainAxisSize.min,

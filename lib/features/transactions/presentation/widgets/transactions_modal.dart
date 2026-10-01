@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,16 +13,19 @@ import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/widgets/branded_dialog_title.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
+import '../../../../core/utils/web_download.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/widgets/responsive_layout.dart';
 import '../../../accounts/data/models/account_model.dart';
 import '../../../accounts/presentation/providers/accounts_notifier.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../categories/data/models/category_model.dart';
 import '../../../categories/domain/enums/category_type.dart';
 import '../../../categories/presentation/providers/categories_notifier.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../providers/transactions_notifier.dart';
+import '../providers/transactions_providers.dart';
 import 'transaction_card.dart';
 import 'transaction_detail_modal.dart';
 import 'edit_transaction_modal.dart';
@@ -98,6 +104,7 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
   DateFilter _selectedDateFilter = DateFilter.thisMonth;
   DateTime? _customStartDate;
   DateTime? _customEndDate;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -240,6 +247,49 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
     // (landscape phones) the filters scroll away instead of squeezing the
     // list to nothing. The dialog height follows the current viewport and
     // Dialog clamps it further when the keyboard is open.
+    final listContent = NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        // Load the next page when the user nears the end.
+        final hasMore = transactionsState.maybeWhen(
+          loaded: (_, hasMore, __) => hasMore,
+          orElse: () => false,
+        );
+        if (hasMore &&
+            notification.metrics.pixels >=
+                notification.metrics.maxScrollExtent - 200) {
+          ref.read(transactionsNotifierProvider.notifier).loadMore();
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: _buildFilters(context, categories, activeAccounts, isMobile),
+          ),
+          ..._buildList(context, transactionsState, isMobile),
+        ],
+      ),
+    );
+
+    if (isMobile) {
+      return Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('All Transactions'),
+            actions: [
+              _buildExportButton(),
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          body: SafeArea(top: false, child: listContent),
+        ),
+      );
+    }
+
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: Breakpoints.listDialogMaxWidth),
@@ -248,15 +298,16 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
           child: Column(
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(
-                  isMobile ? AppSpacing.md : AppSpacing.lg,
-                  isMobile ? AppSpacing.md : AppSpacing.lg,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
                   AppSpacing.sm,
                   AppSpacing.sm,
                 ),
                 child: BrandedDialogTitle(
                   title: const Text('All Transactions'),
                   actions: [
+                    _buildExportButton(),
                     IconButton(
                       icon: const Icon(Icons.close),
                       tooltip: 'Close',
@@ -265,36 +316,154 @@ class _TransactionsModalState extends ConsumerState<TransactionsModal> {
                   ],
                 ),
               ),
-              Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    // Load the next page when the user nears the end.
-                    final hasMore = transactionsState.maybeWhen(
-                      loaded: (_, hasMore, __) => hasMore,
-                      orElse: () => false,
-                    );
-                    if (hasMore &&
-                        notification.metrics.pixels >=
-                            notification.metrics.maxScrollExtent - 200) {
-                      ref.read(transactionsNotifierProvider.notifier).loadMore();
-                    }
-                    return false;
-                  },
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: _buildFilters(context, categories, activeAccounts, isMobile),
-                      ),
-                      ..._buildList(context, transactionsState, isMobile),
-                    ],
-                  ),
-                ),
-              ),
+              Expanded(child: listContent),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildExportButton() {
+    if (_isExporting) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.file_download_outlined),
+      tooltip: 'Export',
+      onSelected: _exportTransactions,
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'csv',
+          child: ListTile(
+            leading: Icon(Icons.table_chart_outlined),
+            title: Text('Export as CSV'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'pdf',
+          child: ListTile(
+            leading: Icon(Icons.picture_as_pdf_outlined),
+            title: Text('Export as PDF'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _filterDescription() {
+    final typeLabel = _selectedType?.displayName ?? 'All Transactions';
+    return '$typeLabel — ${_selectedDateFilter.displayName}';
+  }
+
+  Future<void> _exportTransactions(String format) async {
+    if (_isExporting) return;
+
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      context.showErrorSnackBar('User not authenticated');
+      return;
+    }
+
+    setState(() => _isExporting = true);
+
+    try {
+      DateTime? startDate;
+      DateTime? endDate;
+
+      if (_selectedDateFilter != DateFilter.custom) {
+        final range = _selectedDateFilter.getDateRange();
+        startDate = range.startDate;
+        endDate = range.endDate;
+      } else {
+        startDate = _customStartDate;
+        final end = _customEndDate;
+        endDate = end == null
+            ? null
+            : DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+      }
+
+      final result = await ref.read(transactionsRepositoryProvider).getTransactions(
+            user.uid,
+            type: _selectedType,
+            accountId: _selectedAccountId,
+            categoryId: _selectedCategoryId,
+            startDate: startDate,
+            endDate: endDate,
+            limit: 5000,
+          );
+
+      if (result.failure != null) {
+        if (mounted) context.showErrorSnackBar(result.failure!.message);
+        return;
+      }
+
+      if (result.transactions.isEmpty) {
+        if (mounted) context.showErrorSnackBar('No transactions to export');
+        return;
+      }
+
+      final accountsById = ref.read(accountsNotifierProvider).maybeWhen<Map<String, AccountModel>>(
+            loaded: (accounts) => {for (final account in accounts) account.id: account},
+            orElse: () => const {},
+          );
+      final categoriesById =
+          ref.read(categoriesNotifierProvider).maybeWhen<Map<String, CategoryModel>>(
+                loaded: (categories) => {for (final category in categories) category.id: category},
+                orElse: () => const {},
+              );
+
+      final exportService = ref.read(transactionExportServiceProvider);
+      final now = DateTime.now();
+      final filenameStamp = '${now.year}'
+          '${now.month.toString().padLeft(2, '0')}'
+          '${now.day.toString().padLeft(2, '0')}-'
+          '${now.hour.toString().padLeft(2, '0')}'
+          '${now.minute.toString().padLeft(2, '0')}';
+
+      if (format == 'csv') {
+        final csv = exportService.buildCsv(
+          result.transactions,
+          accountsById: accountsById,
+          categoriesById: categoriesById,
+        );
+        downloadFile(
+          Uint8List.fromList(utf8.encode(csv)),
+          'eazyvault-transactions-$filenameStamp.csv',
+          mimeType: 'text/csv',
+        );
+      } else {
+        final pdfBytes = await exportService.buildPdf(
+          result.transactions,
+          accountsById: accountsById,
+          categoriesById: categoriesById,
+          filterDescription: _filterDescription(),
+        );
+        downloadFile(
+          pdfBytes,
+          'eazyvault-transactions-$filenameStamp.pdf',
+          mimeType: 'application/pdf',
+        );
+      }
+
+      if (mounted) {
+        context.showSuccessSnackBar('${result.transactions.length} transactions exported');
+      }
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Export failed: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   Widget _buildFilters(
