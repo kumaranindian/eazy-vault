@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/utils/validators.dart';
@@ -176,6 +178,17 @@ class _AddEditBudgetModalState extends ConsumerState<AddEditBudgetModal> {
                 ],
                 validator: Validators.positiveAmount,
                 enabled: !_isLoading,
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context
+                        .push('${RouteConstants.userManual}?section=budgets');
+                  },
+                  child: const Text('Learn how budget alerts work →'),
+                ),
               ),
             ],
           ),

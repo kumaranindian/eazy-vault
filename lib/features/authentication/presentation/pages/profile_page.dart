@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -173,6 +175,36 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     onChanged: _isTogglingNotifications
                         ? null
                         : (value) => _handleToggleNotifications(value),
+                  ),
+                  AppSpacing.gapXL,
+                  const Divider(),
+                  AppSpacing.gapMD,
+                  Text(
+                    'Help',
+                    style: context.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.flag_outlined),
+                    title: const Text('Getting Started'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RouteConstants.gettingStarted),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.menu_book_outlined),
+                    title: const Text('User Manual'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RouteConstants.userManual),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('About Us'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push(RouteConstants.about),
                   ),
                   AppSpacing.gapXL,
                   ElevatedButton(

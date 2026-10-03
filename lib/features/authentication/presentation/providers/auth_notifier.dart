@@ -27,22 +27,36 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   void _listenToAuthChanges() {
-    ref.listen(authStateChangesProvider, (previous, next) {
-      next.when(
-        data: (user) {
-          if (user != null) {
-            _loadUserData(user.uid);
-          } else {
-            state = const AuthState.unauthenticated();
-          }
-        },
-        loading: () => state = const AuthState.loading(),
-        error: (error, stack) {
-          LoggerService.error('Auth state error', error: error, stackTrace: stack);
-          state = AuthState.error(Failure.unknownError(error.toString()));
-        },
-      );
-    });
+    // fireImmediately matters because this notifier is auto-dispose: most
+    // pages only `ref.read` it, so it's rebuilt from scratch on nearly every
+    // access. Without it, a fresh build only reacts to the *next* emission
+    // of authStateChangesProvider; if the user is already signed in from a
+    // prior session, that provider already has its value cached and won't
+    // emit again, leaving state stuck at `initial()` (infinite loading).
+    ref.listen(
+      authStateChangesProvider,
+      (previous, next) {
+        next.when(
+          data: (user) {
+            if (user != null) {
+              _loadUserData(user.uid);
+            } else {
+              state = const AuthState.unauthenticated();
+            }
+          },
+          loading: () => state = const AuthState.loading(),
+          error: (error, stack) {
+            LoggerService.error(
+              'Auth state error',
+              error: error,
+              stackTrace: stack,
+            );
+            state = AuthState.error(Failure.unknownError(error.toString()));
+          },
+        );
+      },
+      fireImmediately: true,
+    );
   }
 
   Future<void> _loadUserData(String userId) async {
@@ -68,20 +82,30 @@ class AuthNotifier extends _$AuthNotifier {
   }) async {
     state = const AuthState.loading();
 
-    final repository = await ref.read(authRepositoryProvider.future);
-    final result = await repository.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-      rememberMe: rememberMe,
-    );
+    // Pages that call this (login/register) never `ref.watch` this provider,
+    // so without this it's auto-disposed as soon as this read's synchronous
+    // scope ends — before the Firebase round trip finishes — and the
+    // eventual `state = AuthState.error(...)` below lands on an already
+    // discarded instance, silently losing the error.
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final result = await repository.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+        rememberMe: rememberMe,
+      );
 
-    if (result.failure != null) {
-      state = AuthState.error(result.failure!);
-      return false;
+      if (result.failure != null) {
+        state = AuthState.error(result.failure!);
+        return false;
+      }
+
+      state = AuthState.authenticated(result.user);
+      return true;
+    } finally {
+      link.close();
     }
-
-    state = AuthState.authenticated(result.user);
-    return true;
   }
 
   Future<bool> signUpWithEmailAndPassword({
@@ -91,74 +115,99 @@ class AuthNotifier extends _$AuthNotifier {
   }) async {
     state = const AuthState.loading();
 
-    final repository = await ref.read(authRepositoryProvider.future);
-    final result = await repository.signUpWithEmailAndPassword(
-      email: email,
-      password: password,
-      displayName: displayName,
-    );
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final result = await repository.signUpWithEmailAndPassword(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
 
-    if (result.failure != null) {
-      state = AuthState.error(result.failure!);
-      return false;
+      if (result.failure != null) {
+        state = AuthState.error(result.failure!);
+        return false;
+      }
+
+      state = AuthState.authenticated(result.user);
+      return true;
+    } finally {
+      link.close();
     }
-
-    state = AuthState.authenticated(result.user);
-    return true;
   }
 
   Future<bool> signInWithGoogle() async {
     state = const AuthState.loading();
 
-    final repository = await ref.read(authRepositoryProvider.future);
-    final result = await repository.signInWithGoogle();
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final result = await repository.signInWithGoogle();
 
-    if (result.failure != null) {
-      state = AuthState.error(result.failure!);
-      return false;
+      if (result.failure != null) {
+        state = AuthState.error(result.failure!);
+        return false;
+      }
+
+      state = AuthState.authenticated(result.user);
+      return true;
+    } finally {
+      link.close();
     }
-
-    state = AuthState.authenticated(result.user);
-    return true;
   }
 
   Future<bool> signOut() async {
     state = const AuthState.loading();
 
-    final repository = await ref.read(authRepositoryProvider.future);
-    final failure = await repository.signOut();
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final failure = await repository.signOut();
 
-    if (failure != null) {
-      state = AuthState.error(failure);
-      return false;
+      if (failure != null) {
+        state = AuthState.error(failure);
+        return false;
+      }
+
+      state = const AuthState.unauthenticated();
+      return true;
+    } finally {
+      link.close();
     }
-
-    state = const AuthState.unauthenticated();
-    return true;
   }
 
   Future<bool> sendPasswordResetEmail(String email) async {
-    final repository = await ref.read(authRepositoryProvider.future);
-    final failure = await repository.sendPasswordResetEmail(email);
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final failure = await repository.sendPasswordResetEmail(email);
 
-    if (failure != null) {
-      state = AuthState.error(failure);
-      return false;
+      if (failure != null) {
+        state = AuthState.error(failure);
+        return false;
+      }
+
+      return true;
+    } finally {
+      link.close();
     }
-
-    return true;
   }
 
   Future<bool> sendEmailVerification() async {
-    final repository = await ref.read(authRepositoryProvider.future);
-    final failure = await repository.sendEmailVerification();
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final failure = await repository.sendEmailVerification();
 
-    if (failure != null) {
-      state = AuthState.error(failure);
-      return false;
+      if (failure != null) {
+        state = AuthState.error(failure);
+        return false;
+      }
+
+      return true;
+    } finally {
+      link.close();
     }
-
-    return true;
   }
 
   Future<void> reloadUser() async {
@@ -172,11 +221,16 @@ class AuthNotifier extends _$AuthNotifier {
   /// rest of the app relying on `AuthState.authenticated` isn't disrupted
   /// mid-save.
   Future<Failure?> updateDisplayName(String userId, String displayName) async {
-    final repository = await ref.read(authRepositoryProvider.future);
-    final result = await repository.updateDisplayName(userId, displayName);
-    if (result.failure != null) return result.failure;
-    state = AuthState.authenticated(result.user);
-    return null;
+    final link = ref.keepAlive();
+    try {
+      final repository = await ref.read(authRepositoryProvider.future);
+      final result = await repository.updateDisplayName(userId, displayName);
+      if (result.failure != null) return result.failure;
+      state = AuthState.authenticated(result.user);
+      return null;
+    } finally {
+      link.close();
+    }
   }
 }
 

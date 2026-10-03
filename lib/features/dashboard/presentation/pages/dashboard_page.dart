@@ -48,6 +48,8 @@ import '../../../reports/domain/enums/report_type.dart';
 import '../../../reports/presentation/widgets/export_config_sheet.dart';
 import '../../../notifications/presentation/providers/active_alerts_provider.dart';
 import '../../../notifications/presentation/widgets/notification_bell.dart';
+import '../../../onboarding/presentation/providers/onboarding_notifier.dart';
+import '../../../onboarding/presentation/widgets/welcome_dialog.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -78,6 +80,20 @@ class DashboardPage extends ConsumerWidget {
     // Fires a browser notification for any newly-crossed budget/bill alert.
     // The in-app bell (below) always reflects current alerts regardless.
     ref.watch(notificationDispatchProvider);
+
+    // First login on this device only: offer the Getting Started walkthrough.
+    // `hasSeenGettingStartedNotifierProvider` resolves once, asynchronously
+    // (SharedPreferences), well after this build() call returns, so calling
+    // showDialog from the listener here is safe (not mid-build) — same
+    // reasoning as the recurring catch-up listener above.
+    ref.listen<AsyncValue<bool>>(hasSeenGettingStartedNotifierProvider, (previous, next) {
+      next.whenOrNull(
+        data: (hasSeen) {
+          if (hasSeen) return;
+          _showWelcomeDialog(context, ref);
+        },
+      );
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -241,10 +257,16 @@ class DashboardPage extends ConsumerWidget {
                                 onTap: () => context.push(RouteConstants.reports),
                               ),
                               QuickActionButton(
-                                label: 'Import',
-                                icon: Icons.file_upload_outlined,
+                                label: 'User Manual',
+                                icon: Icons.menu_book_outlined,
                                 color: Colors.cyan,
-                                onTap: () => context.push(RouteConstants.importTransactions),
+                                onTap: () => context.push(RouteConstants.userManual),
+                              ),
+                              QuickActionButton(
+                                label: 'About Us',
+                                icon: Icons.info_outline,
+                                color: Colors.blueGrey,
+                                onTap: () => context.push(RouteConstants.about),
                               ),
                             ],
                           ),
@@ -413,6 +435,13 @@ class DashboardPage extends ConsumerWidget {
       context: context,
       builder: (context) => AddTransactionDialog(type: type),
     );
+  }
+
+  Future<void> _showWelcomeDialog(BuildContext context, WidgetRef ref) async {
+    final showGuide = await WelcomeDialog.show(context);
+    ref.read(hasSeenGettingStartedNotifierProvider.notifier).markSeen();
+    if (!showGuide || !context.mounted) return;
+    context.push(RouteConstants.gettingStarted);
   }
 
   void _showAccountsModal(BuildContext context) {

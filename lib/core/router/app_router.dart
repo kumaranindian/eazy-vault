@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../features/about/presentation/pages/about_page.dart';
 import '../../features/accounts/presentation/pages/account_detail_page.dart';
 import '../../features/accounts/presentation/pages/accounts_page.dart';
 import '../../features/accounts/presentation/pages/add_edit_account_page.dart';
@@ -13,14 +14,16 @@ import '../../features/authentication/presentation/pages/profile_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../features/categories/presentation/pages/add_edit_category_page.dart';
-import '../../features/csv_import/presentation/pages/csv_import_page.dart';
+import '../../features/csv_import/presentation/pages/import_coming_soon_page.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/onboarding/presentation/pages/getting_started_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/transactions/domain/enums/transaction_type.dart';
 import '../../features/transactions/presentation/pages/add_edit_transaction_page.dart';
 import '../../features/transactions/presentation/pages/transaction_detail_page.dart';
 import '../../features/transactions/presentation/pages/transactions_page.dart';
+import '../../features/user_manual/presentation/pages/user_manual_page.dart';
 import '../constants/app_constants.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/navigation/app_scaffold.dart';
@@ -181,9 +184,12 @@ GoRouter appRouter(AppRouterRef ref) {
           return AddEditTransactionPage(transactionId: id);
         },
       ),
+      // Points at the Coming Soon placeholder while the real CSV import
+      // flow (`CsvImportPage`, unchanged, same feature folder) is pulled
+      // back; swap the builder back to restore it.
       GoRoute(
         path: RouteConstants.importTransactions,
-        builder: (context, state) => const CsvImportPage(),
+        builder: (context, state) => const ImportComingSoonPage(),
       ),
       GoRoute(
         path: RouteConstants.reports,
@@ -197,6 +203,20 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(
         path: RouteConstants.settings,
         builder: (context, state) => const ProfilePage(),
+      ),
+      GoRoute(
+        path: RouteConstants.about,
+        builder: (context, state) => const AboutPage(),
+      ),
+      GoRoute(
+        path: RouteConstants.gettingStarted,
+        builder: (context, state) => const GettingStartedPage(),
+      ),
+      GoRoute(
+        path: RouteConstants.userManual,
+        builder: (context, state) => UserManualPage(
+          initialSectionId: state.uri.queryParameters['section'],
+        ),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

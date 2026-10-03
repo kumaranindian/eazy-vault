@@ -169,11 +169,6 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         title: const Text('Transactions'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_upload_outlined),
-            onPressed: () => context.push(RouteConstants.importTransactions),
-            tooltip: 'Import',
-          ),
-          IconButton(
             icon: const Icon(Icons.file_download_outlined),
             onPressed: () => ExportConfigSheet.show(
               context,
