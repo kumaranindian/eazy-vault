@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Facts here were verified against the source on 2026-09-28 (branch `feature/claude-verification`, after the bug-fix pass that followed `PROJECT_AUDIT.md`). The many `*_SUMMARY.md` / `*_STATUS.md` files in the repo root are historical AI-generated notes and are **not reliable** (e.g. `FINAL_COMPLETION_SUMMARY.md` claims "100% complete" and a passing test suite; neither is true). Trust the code and this file over them.
+> Facts here were re-verified against the source on 2026-10-03 (branch `ccr-3b33f961-q93u60`) — a full pass that found the codebase had moved well past the 2026-09-28 verification (new `about`, `onboarding`, `user_manual`, `notifications`, `budgets`, `recurring_transactions` and `csv_import` features; a live responsive nav shell; attachments with real file upload; dark-mode-only theming). The many `*_SUMMARY.md` / `*_STATUS.md` files in the repo root are historical AI-generated notes and are **not reliable** (e.g. `FINAL_COMPLETION_SUMMARY.md` claims "100% complete" and a passing test suite; neither is true). Trust the code and this file over them. `flutter analyze`/`flutter test` could not be re-run as part of this pass (no Flutter SDK in that environment) — the exact test count and analyzer-error count below are carried over unverified; treat them as stale until re-run.
 
 ---
 
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Purpose:** a single user tracks money across their own accounts: income, expenses, transfers between accounts, and money lent/borrowed (loans), with a dashboard summary.
 - **Users/roles:** one role only — an authenticated individual who owns all their data. No admin, family sharing, or organizations exist.
 - **Currency:** INR only, hard-coded (`AppConfig.defaultCurrency = '₹'`, `currencyCode = 'INR'`; formatting in `core/utils/currency_utils.dart`).
-- **Status:** working prototype. Core CRUD for accounts/categories/transactions works; several dashboard features are stubs; the analyzer reports errors and the tests don't compile. See §20.
+- **Status:** working app well past "prototype" — core CRUD plus budgets, recurring transactions, attachments, notifications, reports/export, onboarding and a real profile/settings page are all implemented and reachable (§20). The analyzer-error and test-pass/fail counts are unverified as of this pass (no Flutter SDK available) — don't assume either "0 errors, all passing" or "errors, tests don't compile" without re-running `flutter analyze`/`flutter test` yourself. See §16/§20.
 
 ### Business terminology
 | Term | Meaning in code |
@@ -33,16 +33,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Routing | `go_router` 14 |
 | Models | `freezed` + `json_serializable` |
 | Backend | Firebase only — no custom API server |
-| Firebase services used in code | Auth (email/password + Google), Cloud Firestore, Analytics (release only). Crashlytics is initialized in release but effectively inactive (see §13). |
-| Firebase configured but unused in code | Storage (`storage.rules` exists, `firebase_storage` never imported) |
+| Firebase services used in code | Auth (email/password + Google), Cloud Firestore, Storage (`firebase_storage` — real attachment upload, see §10), Analytics (release only). Crashlytics is initialized in release but effectively inactive (see §13). |
 | Charts | `fl_chart` |
 | Formatting | `intl` |
 | Export | `pdf` + `printing` (PDF), `excel` (real `.xlsx`) — see §22 |
+| CSV | `csv` — parsing for the (currently hidden) CSV import feature, see §20 |
 | Logging | `logger` wrapped by `LoggerService` |
-| Local storage | `shared_preferences` (remember-me, last email) |
+| Local storage | `shared_preferences` (remember-me, last email, notification dedup keys) |
 | Hosting | Firebase Hosting serving `build/web` with SPA rewrite to `/index.html` |
 
-Declared but **not imported anywhere in `lib/`**: `firebase_storage`, `cached_network_image`, `shimmer`, `uuid`, `image_picker`, `file_picker`, `path_provider`, `connectivity_plus`, `url_launcher`, `flutter_svg`. Don't assume they are wired up; check before relying on them.
+Declared but **still not imported anywhere in `lib/`**: `cached_network_image`, `shimmer`, `uuid`, `image_picker`, `path_provider`, `connectivity_plus`. Don't assume they are wired up; check before relying on them. (`firebase_storage`, `file_picker`, `flutter_svg` and `url_launcher` were on this list before but are now genuinely used — attachments, the attachment/CSV file pickers, the Google sign-in button icon, and opening attachment URLs/the About page's links, respectively.)
 
 UI library: plain Material 3 — no third-party component kit, no custom fonts (`assets/fonts/` is empty).
 
@@ -64,7 +64,9 @@ lib/
     theme/                  # AppColors, AppTheme (light + dark)
     utils/                  # Validators, CurrencyUtils, DateTimeUtils
     widgets/                # shared widgets: AppTextField, ConfirmationDialog, EmptyState, ErrorView,
-                            # LoadingIndicator, SplashScreen, ErrorBoundary, navigation/ (unused, see §20)
+                            # LoadingIndicator, SplashScreen, ErrorBoundary, navigation/ (AppScaffold,
+                            # BottomNavBar, NavigationRailSidebar — live, wrapped around the main tabs
+                            # by a ShellRoute, see §4)
     animations/             # page transitions
   features/<feature>/
     data/
@@ -82,11 +84,13 @@ lib/
       providers/            # *_providers.dart (DI wiring), *_notifier.dart (stateful notifiers)
 test/
   helpers/                  # MockFirebase (fake_cloud_firestore, firebase_auth_mocks), TestHelpers
-  unit/                     # AccountBalanceService and TransactionsRepository tests
-  widget_test.dart          # stale Flutter counter template (broken)
+  unit/                     # 14 files — AccountBalanceService/TransactionsRepository plus budgets,
+                            # recurring transactions, notifications, CSV import, net worth and reports
+  widget/                   # transfer_transaction_form_test.dart
+  widget_test.dart          # real Validators tests (not the stale counter template any more)
 ```
 
-Features: `authentication`, `accounts`, `categories`, `transactions`, `dashboard`, `budgets`, `recurring_transactions`, `reports` (§22 — not yet reflected elsewhere in this doc's older sections; verify against the actual `lib/features/` listing rather than assuming this file is exhaustive). There is **no `settings` or `profile` feature** even though the README and `RouteConstants.settings/profile` mention them. `dashboard` has no data layer of its own except `AccountFinancials`; it composes other features' repositories/providers. `reports` composes `transactions`/`accounts`/`categories` the same way — no Firestore access of its own.
+Features (13 directories under `lib/features/`): `authentication`, `accounts`, `categories`, `transactions`, `dashboard`, `budgets`, `recurring_transactions`, `reports`, `about`, `onboarding`, `user_manual`, `notifications`, `csv_import`. All are reachable from the UI except `csv_import` (see §20). There **is** a `settings`/`profile` feature: `features/authentication/presentation/pages/profile_page.dart` (`ProfilePage`), routed at both `/profile` and `/settings`. `dashboard` owns two bits of real domain logic beyond composing other features: `AccountFinancials` and a net-worth-over-time calculation (`domain/services/net_worth_service.dart` + `net_worth_calculator.dart`, reusing `AccountBalanceService.signedAmountFor` — see §22). `reports` composes `transactions`/`accounts`/`categories` the same way — no Firestore access of its own.
 
 Where things go:
 - New screen reachable by URL → `features/<f>/presentation/pages/` + route in `app_router.dart` + path in `RouteConstants`.
@@ -116,8 +120,9 @@ Feature-first, layered: **Widget → Notifier/provider → Repository → Remote
 
 ### Navigation architecture
 - `appRouterProvider` (keepAlive) builds the `GoRouter` **once** and re-runs `redirect` via `refreshListenable` (a `ValueNotifier` fed by `authStateChangesProvider`). Redirect: auth loading → `/?from=<requested>` (splash); unauthenticated → `/login?from=<requested>`; authenticated on splash/auth route → `from` or `/dashboard`. `from` is validated by `_safeFrom` (in-app absolute paths only). The splash screen never navigates itself.
-- Flat route list (no `ShellRoute`), each page builds its own `Scaffold`.
-- **In practice the dashboard is the hub:** most interactions (add income/expense, transfer, loans, accounts list, categories list, all transactions, transaction detail) open as `showDialog` modals from `DashboardPage`, not as route navigations. Routed pages (`/accounts`, `/categories`, `/transactions`, add/edit/detail) exist too and are reachable via `context.push`. When adding UI, match whichever surface the similar feature already uses.
+- **There is a `ShellRoute`** (`app_router.dart`, around line 99) wrapping `AppScaffold` around the four main tabs — Dashboard, Accounts, Categories, Transactions — each rendered as a `NoTransitionPage` so only the tab content swaps, not the whole screen; the persistent chrome around it is `BottomNavBar` (<600px), a collapsed `NavigationRailSidebar` (600–1024px), or an extended rail (≥1024px). Every other route (splash/login/register/forgot-password, add/edit/detail pages, `/reports`, `/about`, `/getting-started`, `/manual`, `/profile`, `/settings`, `/transactions/import`) sits outside the shell and builds its own `Scaffold`.
+- **In practice the dashboard is still the hub:** most interactions (add income/expense, transfer, loans, accounts list, categories list, all transactions, transaction detail, budgets, recurring transactions) open as `showDialog` modals from `DashboardPage`, not as route navigations. Routed pages (`/accounts`, `/categories`, `/transactions`, add/edit/detail) exist too and are reachable via `context.push`. When adding UI, match whichever surface the similar feature already uses.
+- `/transactions/import` currently routes to `ImportComingSoonPage`, a placeholder, rather than the real `CsvImportPage` — see §20.
 
 ### Multi-tenancy / roles
 - Not multi-tenant, no roles or permissions. Isolation is **per Firebase Auth user**: every document lives under `users/{uid}/...`, and every repository/notifier method takes the uid from `currentUserProvider`.
@@ -133,11 +138,15 @@ users/{uid}/accounts/{id}          # name, type, openingBalance, currentBalance,
                                    # isActive, description, createdAt, updatedAt, createdBy, isDeleted
 users/{uid}/categories/{id}        # name, type, color, icon, description, isDefault, isActive, + audit fields
 users/{uid}/transactions/{id}      # type, amount, accountId, categoryId, date(Timestamp), description, vendor,
-                                   # attachments(List<String>, unused), metadata(Map), incomePeriod(String?,
-                                   # income only — see §21 "Income Reporting Period vs Money Movement Date"),
-                                   # + audit fields
+                                   # attachments(List<String>, real Storage download URLs — see §10),
+                                   # metadata(Map), incomePeriod(String?, income only — see §21
+                                   # "Income Reporting Period vs Money Movement Date"), + audit fields
+users/{uid}/budgets/{id}           # categoryId, amount (monthly limit), isActive, + audit fields — no
+                                   # period field, always the current calendar month (see §21)
+users/{uid}/recurringTransactions/{id}  # type, amount, accountId, categoryId, frequency, startDate,
+                                   # endDate(nullable), description, vendor, + audit fields
 ```
-(`profile` and `settings` sub-paths are allowed by rules and named in `AppConstants` but no code writes them.)
+(`profile` and `settings` sub-paths named in `AppConstants` are still unwritten by any code — editing your display name on `/profile`/`/settings` updates the `users/{uid}` doc itself, not a separate `profile` subcollection.)
 
 Relationships are by id only (no references): `transaction.accountId → accounts`, `transaction.categoryId → categories`, loan repayment `metadata.linkedLoanId → transactions`, transfer `metadata.from/toAccountId → accounts`. Transfers and loans use **sentinel category ids** `'transfer'` and `'loan'` that don't exist in `categories` — code resolving category names must handle that.
 
@@ -157,11 +166,12 @@ Composite indexes all start with `isDeleted ASC`: transactions on `date` (asc/de
 - **`delete` is denied** on those collections → soft delete via `isDeleted: true` is mandatory.
 - User doc create requires `createdAt`, `updatedAt`, `createdBy`; updates can't change `createdAt`/`createdBy`. `UserModel.toFirestore()` writes `createdBy: uid` to satisfy this. A failed profile-doc write is logged but doesn't fail sign-up/sign-in (the Auth account already exists); it's retried on the next sign-in. The deployed rules haven't been verified against this file.
 - Rules do no type or amount validation; the app does that.
-- `storage.rules`: owner-only paths `users/{uid}/**`, `transactions/{uid}/{txId}/{file}` (≤5 MB, image/pdf), `profiles/{uid}/{file}` (images). No app code uses Storage yet.
+- `storage.rules`: owner-only paths `users/{uid}/**`, `transactions/{uid}/{txId}/{file}` (≤5 MB, image/pdf), `profiles/{uid}/{file}` (images). `AttachmentUploadService` (§10) now uses the `transactions/{uid}/{txId}/{file}` path for real uploads, mirroring these same limits client-side (`maxFileSizeBytes`, `isAllowedContentType`).
+- `firestore.rules` already has matching owner-only / `createdBy`-checked / `delete: false` `match` blocks for `budgets` and `recurringTransactions` (lines ~73 and ~82), and `firestore.indexes.json` has `isDeleted+createdAt` indexes for both — these were added correctly when those features shipped, just not previously reflected in this file's Firestore layout above.
 
 ## 6. Authentication & Authorization
 
-- **Methods:** email/password (sign up with display name, sign in, password reset, email verification) and Google (`google_sign_in` 6.x `GoogleSignIn.signIn()` → `GoogleAuthProvider.credential` → `signInWithCredential`). On first Google login a `users/{uid}` doc is created. The web OAuth client id comes from the `google-signin-client_id` `<meta>` tag in `web/index.html`; leave it in place.
+- **Methods:** email/password (sign up with display name, sign in, password reset, email verification) and Google. `AuthRemoteDataSourceImpl` branches on `kIsWeb` (this app ships web-only, so this is the path that actually runs): `_firebaseAuth.signInWithPopup(GoogleAuthProvider())` directly — a code comment notes `google_sign_in`'s `signIn()` is deprecated/broken on web after Google's GIS migration. The old `GoogleSignIn.signIn()` → `GoogleAuthProvider.credential` → `signInWithCredential` path still exists for non-web, but there's no `android`/`ios` build target to run it. On first Google login a `users/{uid}` doc is created. The `google-signin-client_id` `<meta>` tag in `web/index.html` is still present but no longer load-bearing for the popup flow — leave it in place, but don't assume removing/changing it affects sign-in.
 - **Password policy** (`Validators.password`): 8–128 chars with at least one uppercase letter, one lowercase letter and one digit.
 - **Session:** Firebase Auth's own persistence. `authStateChangesProvider` (stream) is the source of truth for routing; `currentUserProvider` gives the `User?` synchronously. `AuthNotifier` (freezed `AuthState`: initial/loading/authenticated(UserModel)/unauthenticated/error) drives the auth pages and loads the Firestore `UserModel`.
 - **Remember me / last email:** stored in `SharedPreferences` via `AuthLocalDataSource` (keys in `AppConstants.sharedPrefs*`).
@@ -171,12 +181,12 @@ Composite indexes all start with `isDeleted ASC`: transactions on `date` (asc/de
 
 ## 7. UI/UX Conventions
 
-- **Theme:** `AppTheme.lightTheme` / `darkTheme`, Material 3, `ThemeMode.system`. Use `context.colorScheme`, `context.textTheme` (from `ContextExtensions`), and `AppColors` constants — don't hard-code hex values.
+- **Theme:** `AppTheme.lightTheme` / `darkTheme` both exist (Material 3), but `main.dart` hardcodes `themeMode: ThemeMode.dark` — the app is **always dark**, not system/auto, and there's no in-app toggle (`AppTheme.lightTheme` is currently unreachable). Use `context.colorScheme`, `context.textTheme` (from `ContextExtensions`), and `AppColors` constants — don't hard-code hex values.
 - **Colors (`AppColors`):** primary emerald `#10B981`, secondary indigo `#6366F1`, error `#EF4444`, warning `#F59E0B`, info `#3B82F6`. Semantic `AppColors.income` (green) / `AppColors.expense` (red). Palettes: `chartColors`, `accountColors`, `categoryColors`. Account/category `color` is stored as an `int` (ARGB) and `icon` as a string (emoji).
 - **Typography:** Material text theme with explicit sizes/weights defined in `AppTheme` (display 57/45/36 w700, headline 32/28/24, title 22…); system font.
 - **Shape:** cards radius 12 with 1px `AppColors.border` and elevation 0; buttons/inputs radius 8; dialogs radius 16.
 - **Spacing:** `AppSpacing` scale xs 4 / sm 8 / md 16 / lg 24 / xl 32 / xxl 48, with `paddingMD`, `gapMD`, `borderRadiusLG`, etc. Use these instead of raw numbers in new code.
-- **Responsive:** `Breakpoints` mobile <600, tablet 600–1024, desktop ≥1024; `context.isMobile/isTablet/isDesktop` wrap them. Adoption is thin: only ~2 feature files branch on breakpoints and ~4 constrain width (`ConstrainedBox`/`maxWidth`). Most pages are single-column. New layouts should use these helpers rather than raw pixel checks.
+- **Responsive:** `Breakpoints` mobile <600, tablet 600–1024, desktop ≥1024 (also `compactHeight`, `contentMaxWidth`=1200, `formMaxWidth`=560, `listDialogMaxWidth`=900); `context.isMobile/isTablet/isDesktop` wrap them. Adoption is wider than it used to be: `AppScaffold` itself (§4's `ShellRoute`) branches 3-way on width to pick bottom-nav vs. collapsed vs. extended rail, on top of the forms/dialogs that constrain width via `Breakpoints`. New layouts should use these helpers rather than raw pixel checks.
 - **Reusable components:** `AppTextField`, `ConfirmationDialog`, `EmptyState`, `ErrorView`, `LoadingIndicator`; feature cards (`AccountCard`, `CategoryCard`, `TransactionCard`, `SummaryCard`); `ColorPickerDialog`, `IconPickerDialog`.
 - **Feedback:** `context.showSuccessSnackBar` / `showErrorSnackBar` / `showInfoSnackBar`; confirmations via `showDialog<bool>` with an `AlertDialog` or `ConfirmationDialog`.
 - **Forms:** `Form` + `GlobalKey<FormState>` + `Validators.*`; submit buttons show a local `_isLoading` spinner in a `ConsumerStatefulWidget`.
@@ -208,7 +218,13 @@ Composite indexes all start with `isDeleted ASC`: transactions on `date` (asc/de
 - No HTTP APIs; "services" means Firestore-backed classes.
 - **Data sources:** Firestore reads and account/category CRUD; build paths with `_firestore.collection(AppConstants.userCollection).doc(uid).collection(AppConstants.xCollection)`; soft delete = `update({isDeleted: true, updatedAt: now})`. The transactions data source has **no write methods** — never add a transaction write that bypasses `AccountBalanceService`. Accounts: `updateAccount` is a transactional partial update (never writes `currentBalance` from the client; applies an `openingBalance` change as a delta); `deleteAccount` refuses if any non-deleted transaction references the account (`accountId` or `metadata.toAccountId`); `getAccount` treats soft-deleted as not found. Categories data source also has `seedDefaultCategories` (runs only if the user has no categories).
 - **Repositories:** wrap data sources/services, convert exceptions to `Failure` (including `NotFound`/`Validation`). Return records like `({List<AccountModel> accounts, Failure? failure})`; delete returns `Future<Failure?>`. `TransactionsRepository.updateTransaction(uid, tx)` takes no "old" copy — the service reads the stored version.
-- **Domain services** (`features/transactions/domain/services/`): `AccountBalanceService` (`createTransaction` / `updateTransaction` / `deleteTransaction`, all atomic; `isEditableType`), `TransferService` (validates and creates the transfer via the balance service with a non-negative check on the source; `reverseTransfer`), `LoanService` (active/overdue loans, totals, `recordRepayment(userId, repayment)` → balance service). They throw `AppException`s; forms that call them directly catch `AppException` and show `e.message`.
+- **Domain services** (`features/transactions/domain/services/`): `AccountBalanceService` (`createTransaction` / `updateTransaction` / `deleteTransaction`, all atomic; `isEditableType`), `TransferService` (validates and creates the transfer via the balance service with a non-negative check on the source; `reverseTransfer`), `LoanService` (active/overdue loans, totals, `recordRepayment(userId, repayment)` → balance service), `AttachmentUploadService` (Storage upload/delete for transaction attachments, 5 MB + image/pdf check mirroring `storage.rules`), `TransactionExportService` (CSV/PDF/Excel for the Transaction Statement report, see §22). They throw `AppException`s; forms that call them directly catch `AppException` and show `e.message`.
+- **Other domain services, not in `transactions/`** — add these if you're looking for "where does X get computed":
+  - `RecurringTransactionService` (`features/recurring_transactions/domain/services/`) — client-side catch-up only (no server scheduler); on app open, creates any transactions a rule owes since it last ran (capped at 24/run) via the normal `TransactionsRepository.createTransaction` path, so it goes through `AccountBalanceService` like any manual entry.
+  - `AlertEvaluator` (`features/notifications/domain/services/`) — pure, no Firestore/browser APIs: budget-threshold (80/90/100%, highest-only) and loan-due-date (3 days out / tomorrow / today / overdue-daily) alert logic, unit-tested directly.
+  - `NotificationDispatchService` (`features/notifications/domain/services/`) — turns new `AlertEvaluator` output into a browser notification via `WebNotifier`, once per dedup key (local-prefs-backed); the in-app bell shows every current alert regardless of what's already been dispatched as a popup.
+  - `CsvImportService` (`features/csv_import/domain/services/`) — parses/dedupes a CSV and imports rows through `TransactionsRepository` (never writes Firestore directly); built and unit-tested but not currently reachable from the UI, see §20.
+  - `NetWorthService` / `NetWorthCalculator` (`features/dashboard/domain/services/`) — the dashboard's net-worth-over-time chart, reusing `AccountBalanceService.signedAmountFor` (§22) rather than re-deriving balance effects.
 - `metadata` parsing: `transaction_extensions.dart` exposes typed accessors (e.g. `transferMetadata`) over the raw map using `LoanMetadata.fromJson`/`TransferMetadata.fromJson`.
 - New Firestore functionality: add to the feature's data source interface + impl, expose via the repository interface + impl returning `Failure?`, then a provider/notifier method.
 
@@ -266,19 +282,25 @@ Composite indexes all start with `isDeleted ASC`: transactions on `date` (asc/de
 
 ## 16. Testing
 
-- 54 tests, all passing, all over `fake_cloud_firestore` with real classes:
+- 16 test files (the "54 tests, all passing" count is from the 2026-09-28 pass and wasn't re-verifiable this round — no Flutter SDK available; re-run `flutter test` and update this number before trusting it), all over `fake_cloud_firestore` with real classes:
   - `test/unit/account_balance_service_test.dart` — balance effect of every `TransactionType` on create/update/delete, transfers, repayments and loan status, stale-copy updates, installments serialization.
   - `test/unit/transactions_repository_test.dart` — repository reads/writes and `Failure` mapping.
   - `test/unit/accounts_remote_datasource_test.dart` — opening-balance delta, no stale `currentBalance` writes, delete guards.
   - `test/unit/transfer_and_loan_service_test.dart` — `TransferService`, `LoanService.recordRepayment`.
   - `test/unit/currency_utils_test.dart` — sign handling in currency formatting/parsing, `roundToDecimal`.
   - `test/widget/transfer_transaction_form_test.dart` — drives the real transfer form (UI → provider → service) and checks both balances; overrides `firebaseFirestoreProvider` and `currentUserProvider`.
-  - `test/widget_test.dart` — `Validators` (name kept from the template).
+  - `test/widget_test.dart` — real `Validators` tests (`positiveAmount`, `password`); **not** a leftover stub any more, despite the name.
   - `account_balance_service_test.dart` also covers `recalculateBalances` and repairing transfers that lost their destination.
   - `test/unit/income_period_test.dart` — `IncomePeriod` format/parse and the `effectiveIncomePeriod`/`incomeReportingMonth`/`hasDistinctIncomePeriod` fallback logic (pure Dart, no Firestore).
   - `test/unit/income_reporting_test.dart` — the income-reporting-period business rule end to end against `fake_cloud_firestore`: cross-month and same-month income, the year-boundary case, the legacy-record fallback, editing `incomePeriod` without touching the account balance, and deleting an income correctly affecting both.
+  - `test/unit/alert_evaluator_test.dart` — budget-threshold and bill-due-date alert logic (pure, no Firestore).
+  - `test/unit/categories_remote_datasource_test.dart` — categories CRUD, soft-delete, default seeding.
+  - `test/unit/csv_import_service_test.dart` — CSV parsing/dedup/import, despite the UI entry point being hidden (see §20).
+  - `test/unit/net_worth_calculator_test.dart` and `test/unit/net_worth_service_test.dart` — the dashboard net-worth-over-time calculation.
+  - `test/unit/recurring_transactions_notifier_test.dart` — recurring transaction CRUD/notifier state.
+  - `test/unit/report_calculation_service_test.dart` (the largest test file in the repo) — the reports feature's calculation layer, §22.
 - `test/helpers/` provides `MockFirebase.getFakeFirestore()` (re-exports `FakeFirebaseFirestore`), `getMockAuth()`, `seedFirestore(firestore, uid)` and `TestHelpers.testUserId`. Seed: `account-1` (cash, 10000), `account-2` (savings, 50000), `category-1` (expense), `category-2` (income), `transaction-1` (expense 500 on `account-1`, treated as already reflected in the seeded balance). Import app code as `package:eazyvault/...`.
-- No Firestore rules tests and no widget/integration tests yet.
+- No Firestore rules tests. No test file for budgets despite the feature being fully implemented — a real gap, not just a doc gap, worth closing.
 - Commands: `flutter test`, `flutter test test/unit/account_balance_service_test.dart`, `flutter test --plain-name "should increase balance"`.
 - Highest-value areas to test: balance effects of every `TransactionType` (create/update/delete), transfers, loan repayment status transitions, soft-delete filtering, repository `Failure` mapping.
 
@@ -334,15 +356,22 @@ firebase deploy --only storage
 - Categories: CRUD, income/expense types, default category seeding (menu action / empty-state button).
 - Transactions: income/expense CRUD with balance updates, paginated list, detail modal/page. Income carries an optional reporting period (`incomePeriod`, "Income For" in the UI) distinct from its credited date — see §21 "Income Reporting Period vs Money Movement Date".
 - Transfers and loans (given/taken/repayment) via dashboard dialogs; `LoanService` status tracking.
-- Dashboard: total balance, current-month income/expense, per-account financials chart, recent transactions stream, quick actions, loans summary, upcoming bills (derived from active loans' due dates), dark mode.
+- Dashboard: total balance, current-month income/expense, per-account financials chart, net-worth-over-time chart, recent transactions stream, quick actions, loans summary, upcoming bills (derived from active loans' due dates), category-wise expense breakdown chart. Theme is fixed dark (not dark "mode" as one of several — see §7).
+- **Budgets** (`features/budgets/`): full CRUD — one monthly limit per expense category (categories already budgeted are excluded from the picker; a budget's category can't be changed after creation), opened via the dashboard's Budgets quick action (`BudgetsModal`/`AddEditBudgetModal`). "Spent" is computed at read time from the category's current-month expense total (`BudgetProgressProvider`), never stored — budgets don't touch `AccountBalanceService` (see §21).
+- **Recurring transactions** (`features/recurring_transactions/`): full CRUD (Daily/Weekly/Monthly only, optional end date), opened via the dashboard's Recurring quick action. `RecurringTransactionService.catchUp` runs once per app session on open, generating any transactions a rule owes (capped at 24/run) through the normal `TransactionsRepository.createTransaction` path — so, unlike budgets, this **does** move money, correctly, with no bypass of `AccountBalanceService`.
+- **Attachments**: real file upload (`AttachmentUploadService` → Firebase Storage, 5 MB limit, image/* or PDF), reachable from a transaction's detail view (`AttachmentsSection`) with upload-progress, view, and remove. Download URLs are stored in the transaction's `attachments` list.
+- **Notifications**: an in-app bell (always shows current alerts) plus opt-in browser push (`NotificationDispatchService`/`WebNotifier`), both driven by `AlertEvaluator`'s pure budget-threshold (80/90/100%) and loan-due-date (3 days out / tomorrow / today / overdue-daily) logic. The toggle lives on `/profile`/`/settings`.
+- **Profile & Settings** (`/profile` and `/settings`, both → `ProfilePage`): editable display name, read-only email/join date, the notification toggle, help links.
+- **Onboarding**: a `WelcomeDialog` on first dashboard visit, and a `GettingStartedPage` walkthrough at `/getting-started`.
+- **About** (`/about`) and **User Manual** (`/manual`, deep-linkable with `?section=`) informational pages, both linked from the dashboard's Quick Actions and from Profile & Settings.
+- **Responsive navigation shell** (`AppScaffold`/`BottomNavBar`/`NavigationRailSidebar`) is live, wired via a `ShellRoute` around Dashboard/Accounts/Categories/Transactions (see §4) — it is not a stub.
 
 ### Partial / stubbed
-- Category-wise expense breakdown: `// TODO` in `dashboard_providers.dart`.
 - Loans: no dedicated page/route; `LoansSummaryCard` opens list dialogs (active / overdue) → `TransactionDetailModal`, which has a **Repayment** action (`LoanRepaymentForm`). Lend/Borrow buttons open `LoanTransactionForm`.
-- No category delete UI (backend supports it).
-- Responsive navigation shell (`AppScaffold`, `BottomNavBar`, `NavigationRailSidebar`) compiles but is **not used anywhere**. Pages use their own `Scaffold`.
-- Settings/profile: route constants only; no pages. Theme is fixed to system mode (a `theme_mode` prefs key exists, unused).
-- Attachments field and Storage rules exist; no upload code.
+- **CSV import**: the real feature is fully built — `CsvImportPage`, `CsvImportService` (parse/dedupe/import through `TransactionsRepository`), `CsvColumnMapping`/`ParsedCsvRow`/`ImportOutcome` models, and its own unit test (`csv_import_service_test.dart`) — but deliberately unreachable: the `/transactions/import` route points at `ImportComingSoonPage` (a "Coming Soon" placeholder) instead, with a code comment noting how to swap the builder back. Treat this as "feature complete, entry point intentionally hidden," not "stubbed."
+- No test coverage for budgets despite the feature being fully implemented (see §16) — a real gap, not a doc error.
+
+The following were previously listed here as stubs/missing and are **no longer true** — confirmed implemented (see "Implemented" above for detail): category-wise expense breakdown, category delete UI, the responsive navigation shell, a Settings/Profile page, file-upload attachments. The previous claim that theme was "fixed to system mode" was also wrong — it's fixed to **dark**, not system (§7).
 
 ### Known technical debt / open items
 - **Balances written by older app versions can be wrong** (transfers double-debited, borrowed money / repayments received subtracted, stale balances written back by account edits, transfers whose destination was erased by the old edit form). The user repairs them with the 🔄 **Sync balances** action (`recalculate_balances_action.dart`: dashboard Total Balance card, Accounts dialog, Accounts page) → `AccountBalanceService.recalculateBalances`, which rebuilds `currentBalance` = `openingBalance` + effects of all non-deleted transactions using the same rules as live writes. Transfers without `metadata.toAccountId` are listed (`brokenTransfers`) and repaired with `setTransferDestination`. It never runs automatically.
@@ -351,9 +380,9 @@ firebase deploy --only storage
 - Accounts are listed regardless of `isActive`; the flag only hides accounts from transaction forms.
 - `getTotalsByAccount`, `getTotalByType`, `getMonthlyTotals` count only `income`/`expense` (PROJECT_AUDIT Q-4).
 - `firestore.indexes.json` has a categories `type + sortOrder` index, but no model has a `sortOrder` field. New transactions indexes (type/account/category combinations + date) must be deployed with `firebase deploy --only firestore:indexes` before combined filters work.
-- `flutter analyze` (after `build_runner`, with `firebase_options.dart` present): **0 errors**; ~1,000 warnings/infos remain (mostly `always_use_package_imports`, `avoid_dynamic_calls`, deprecated `withOpacity`). Don't add new errors.
+- `flutter analyze` (after `build_runner`, with `firebase_options.dart` present): claimed **0 errors** as of 2026-09-28; **not re-verified** in this pass (no Flutter SDK available) despite several features' worth of new code since — re-run before trusting this number. Don't add new errors.
 - No web crash reporting; Firestore rules have no field validation; no rules tests.
-- Unused declared dependencies (§2); README describes features/settings that don't exist.
+- A handful of declared dependencies are still unused (§2 — down to 6 after this pass's recheck). The README's mention of settings is no longer a doc/code mismatch (§3) — a real Settings/Profile page exists now.
 
 ### Don't change casually
 - `firestore.rules` soft-delete/owner model, and the `users/{uid}/...` layout.
@@ -374,6 +403,7 @@ firebase deploy --only storage
 - **Overdue** is computed, never stored: `TransactionModelExtensions.isOverdue` / `LoanService.getOverdueLoans` = not completed and `dueDate` in the past. Nothing writes `LoanStatus.overdue`; it only appears in UI switch statements.
 - "Active" loans = not `completed`. The dashboard's upcoming bills come from active loans' due dates.
 - Categories: seeding runs only when the user has no categories. The income/expense forms load categories filtered by the matching `CategoryType`.
+- **What touches balances vs. what doesn't, among the newer features:** budgets (`BudgetProgressProvider`) and notifications (`AlertEvaluator`/`NotificationDispatchService`) are purely derived/read-only — they only read already-fetched data and never write Firestore balance-affecting fields; attachments only store a Storage URL on the transaction doc. Recurring transactions are the one newer feature that **does** move money, and it does so correctly: `RecurringTransactionService.catchUp` creates real transactions through `TransactionsRepository.createTransaction`, the same path a manual entry takes, so it still goes through `AccountBalanceService` — no bypass. Keep it that way if you touch recurring transactions.
 
 ### Income Reporting Period vs Money Movement Date
 
@@ -397,7 +427,7 @@ Rules this split depends on, enforced in `TransactionsRemoteDataSourceImpl`:
 
 ## 22. Export & Reports
 
-A `features/reports/` feature (new, not in §1's feature list above — add it there too if this file is next edited by hand) provides 8 report types, each exportable as PDF and `.xlsx`, reachable from the **Reports** quick action on the dashboard (route `/reports`, `ReportsPage`) and from contextual Export buttons on the Dashboard ("This Month"), Transactions page, and an account's detail page ("Export Statement").
+A `features/reports/` feature (now listed in §3's feature list) provides 8 report types, each exportable as PDF and `.xlsx`, reachable from the **Reports** quick action on the dashboard (route `/reports`, `ReportsPage`) and from contextual Export buttons on the Dashboard ("This Month"), Transactions page, and an account's detail page ("Export Statement").
 
 ### Architecture
 ```
@@ -414,7 +444,7 @@ Filters (ExportConfigSheet)
 "Transaction Statement" is the one report type that doesn't use `PdfReportService`/`ExcelReportService`: it calls `TransactionExportService` (`features/transactions/domain/services/`, pre-existing) directly, which now has `buildCsv`/`buildPdf`/`buildExcel` — a flat transaction list needed no new rendering code.
 
 ### Date rules (same as §21 "Income Reporting Period vs Money Movement Date")
-- **Account balances and account statements** (`AccountBalanceService.signedAmountFor`, a new public static method mirroring the private per-account rules the live-write path already uses) always use a transaction's actual `date`, never `incomePeriod`.
+- **Account balances and account statements** (`AccountBalanceService.signedAmountFor`, a public static method mirroring the private per-account rules the live-write path already uses) always use a transaction's actual `date`, never `incomePeriod`. It now has a second consumer beyond reports: the dashboard's `NetWorthService`/`NetWorthCalculator` (§3/§10) reuses it too — keep both in mind under "Don't duplicate" below.
 - **Monthly income** (the Monthly, Income, Category and Annual reports' income side) uses `incomePeriod` (`TransactionsRepository.getIncomeTransactions`, the public form of the hybrid incomePeriod/date query from §21).
 - **Expense** reporting always uses `date` — there's no separate "expense period" concept.
 - An account statement's running balance is computed from the account's `openingBalance` plus every non-deleted transaction affecting it up to the statement's end date (ascending), using `signedAmountFor`; the balance accumulated before the selected start date becomes the statement's displayed "Opening Balance" — this means the fetch is bounded by end date only, not the full range, so a very old account with a far-future "from" date still reads its entire prior history once.
@@ -432,4 +462,4 @@ Filters (ExportConfigSheet)
 New composite index `isDeleted + type + metadata.toAccountId + date` (for the transfer-in half of `getAccountHistory`) and `isDeleted + accountId + date ASC` (ascending, for statement ordering) in `firestore.indexes.json` — not yet deployed; needs `firebase deploy --only firestore:indexes`. No rules changes (rules don't validate fields, and reports only ever read the calling user's own `users/{uid}/...` data through the existing repositories).
 
 ### Don't duplicate
-Never add a report-specific Firestore query or a report-specific balance/income calculation outside `ReportCalculationService` — every number a report shows should trace back to a `TransactionsRepository`/`AccountsRepository`/`CategoriesRepository`/`LoanService`/`AccountBalanceService` call already used elsewhere (dashboard, transaction list, account detail), so the dashboard and every report always agree.
+Never add a report-specific Firestore query or a report-specific balance/income calculation outside `ReportCalculationService` — every number a report shows should trace back to a `TransactionsRepository`/`AccountsRepository`/`CategoriesRepository`/`LoanService`/`AccountBalanceService` call already used elsewhere (dashboard, transaction list, account detail), so the dashboard and every report always agree. The dashboard's `NetWorthService` (§3/§10/§21) reusing `signedAmountFor` is the one other legitimate consumer of that balance math outside reports — don't add a third.
