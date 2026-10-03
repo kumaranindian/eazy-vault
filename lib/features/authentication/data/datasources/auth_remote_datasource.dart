@@ -33,6 +33,8 @@ abstract class AuthRemoteDataSource {
   Future<void> reloadUser();
   
   Future<UserModel?> getUserData(String userId);
+
+  Future<UserModel> updateDisplayName(String userId, String displayName);
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -253,6 +255,38 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     } catch (e, stackTrace) {
       LoggerService.error('Get user data error', error: e, stackTrace: stackTrace);
       throw ServerException(ErrorMessages.from(e, action: 'load your profile'));
+    }
+  }
+
+  @override
+  Future<UserModel> updateDisplayName(String userId, String displayName) async {
+    try {
+      final user = currentUser;
+      if (user == null) {
+        throw const AuthenticationException('No user signed in');
+      }
+
+      await user.updateDisplayName(displayName);
+      await user.reload();
+
+      await _firestore.collection('users').doc(userId).update({
+        'displayName': displayName,
+        'updatedAt': Timestamp.now(),
+      });
+
+      final updated = await getUserData(userId);
+      if (updated == null) {
+        throw const ServerException('Profile not found');
+      }
+      return updated;
+    } on FirebaseAuthException catch (e) {
+      LoggerService.error('Firebase auth error', error: e);
+      throw AuthenticationException(_getAuthErrorMessage(e.code), e.code);
+    } on AppException {
+      rethrow;
+    } catch (e, stackTrace) {
+      LoggerService.error('Update display name error', error: e, stackTrace: stackTrace);
+      throw ServerException(ErrorMessages.from(e, action: 'update your profile'));
     }
   }
 

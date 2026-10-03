@@ -184,6 +184,26 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<({UserModel user, Failure? failure})> updateDisplayName(
+    String userId,
+    String displayName,
+  ) async {
+    try {
+      final user = await _remoteDataSource.updateDisplayName(userId, displayName);
+      return (user: user, failure: null);
+    } on AuthenticationException catch (e) {
+      LoggerService.error('Authentication error', error: e);
+      return (user: _emptyUser(), failure: Failure.authenticationError(e.message));
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return (user: _emptyUser(), failure: Failure.serverError(e.message));
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return (user: _emptyUser(), failure: Failure.unknownError(ErrorMessages.from(e)));
+    }
+  }
+
+  @override
   Future<({bool rememberMe, Failure? failure})> getRememberMe() async {
     try {
       final rememberMe = await _localDataSource.getRememberMe();

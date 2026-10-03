@@ -30,7 +30,12 @@ abstract class AuthRepository {
   Future<Failure?> reloadUser();
   
   Future<({UserModel? user, Failure? failure})> getUserData(String userId);
-  
+
+  Future<({UserModel user, Failure? failure})> updateDisplayName(
+    String userId,
+    String displayName,
+  );
+
   Future<({bool rememberMe, Failure? failure})> getRememberMe();
   
   Future<({String? email, Failure? failure})> getLastEmail();

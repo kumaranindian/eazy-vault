@@ -130,6 +130,11 @@ class DashboardPage extends ConsumerWidget {
                 ],
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profile',
+            onPressed: () => context.push(RouteConstants.profile),
+          ),
           const SignOutButton(),
         ],
       ),

@@ -9,6 +9,7 @@ import '../../features/accounts/presentation/pages/accounts_page.dart';
 import '../../features/accounts/presentation/pages/add_edit_account_page.dart';
 import '../../features/authentication/presentation/pages/forgot_password_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
+import '../../features/authentication/presentation/pages/profile_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../features/categories/presentation/pages/add_edit_category_page.dart';
@@ -182,6 +183,15 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(
         path: RouteConstants.reports,
         builder: (context, state) => const ReportsPage(),
+      ),
+      // Both constants point at the same page — see RouteConstants.
+      GoRoute(
+        path: RouteConstants.profile,
+        builder: (context, state) => const ProfilePage(),
+      ),
+      GoRoute(
+        path: RouteConstants.settings,
+        builder: (context, state) => const ProfilePage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

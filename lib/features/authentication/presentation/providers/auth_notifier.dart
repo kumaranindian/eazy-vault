@@ -165,6 +165,19 @@ class AuthNotifier extends _$AuthNotifier {
     final repository = await ref.read(authRepositoryProvider.future);
     await repository.reloadUser();
   }
+
+  /// Updates the signed-in user's display name. Unlike the other methods
+  /// here, this doesn't set `state = loading` first — the profile page
+  /// tracks its own saving state (same pattern as other edit forms), so the
+  /// rest of the app relying on `AuthState.authenticated` isn't disrupted
+  /// mid-save.
+  Future<Failure?> updateDisplayName(String userId, String displayName) async {
+    final repository = await ref.read(authRepositoryProvider.future);
+    final result = await repository.updateDisplayName(userId, displayName);
+    if (result.failure != null) return result.failure;
+    state = AuthState.authenticated(result.user);
+    return null;
+  }
 }
 
 @riverpod
