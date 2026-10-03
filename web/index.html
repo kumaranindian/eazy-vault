@@ -23,9 +23,10 @@
   <meta name="theme-color" content="#121212">
   <meta name="color-scheme" content="dark">
 
-  <!-- Google Sign-In -->
-  <meta name="google-signin-client_id" content="287395581894-3badc2304f6bd26b98acc7.apps.googleusercontent.com">
-
+  <!-- Google Sign-In on web goes through FirebaseAuth.signInWithPopup, which
+       derives the OAuth client from the Firebase app config — no client_id
+       meta tag is needed (and a hard-coded one would pin every environment
+       to a single project's client). -->
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">

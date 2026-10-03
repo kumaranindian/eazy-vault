@@ -25,11 +25,13 @@ help:
 	@echo "deploy-<env>-hosting           - build + hosting only"
 	@echo "deploy-<env>-storage           - storage.rules only (needs Storage set up in console)"
 
+# --pwa-strategy=none: no service-worker caching, so a deploy always serves
+# the fresh bundle (avoids stale builds pointing at the wrong Firebase project).
 build-dev:
-	flutter build web --release -t lib/main_dev.dart
+	flutter build web --release --pwa-strategy=none -t lib/main_dev.dart
 
 build-prod:
-	flutter build web --release -t lib/main_prod.dart
+	flutter build web --release --pwa-strategy=none -t lib/main_prod.dart
 
 deploy-dev: build-dev
 	firebase deploy --only hosting,firestore --project dev
