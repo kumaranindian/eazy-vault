@@ -98,6 +98,9 @@ class CategoriesRepositoryImpl implements CategoriesRepository {
     try {
       await _remoteDataSource.deleteCategory(userId, categoryId);
       return null;
+    } on ValidationException catch (e) {
+      LoggerService.error('Validation error', error: e);
+      return Failure.validationError(e.message);
     } on ServerException catch (e) {
       LoggerService.error('Server error', error: e);
       return Failure.serverError(e.message);

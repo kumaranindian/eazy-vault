@@ -118,10 +118,28 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
     }
   }
 
+  /// Soft-deletes a category. Categories still referenced by a (non-deleted)
+  /// transaction can't be deleted, mirroring the same guard
+  /// `AccountsRemoteDataSourceImpl.deleteAccount` uses for accounts.
   @override
   Future<void> deleteCategory(String userId, String categoryId) async {
     try {
       LoggerService.info('Deleting category: $categoryId');
+
+      final inUse = await _firestore
+          .collection(AppConstants.userCollection)
+          .doc(userId)
+          .collection(AppConstants.transactionsCollection)
+          .where('categoryId', isEqualTo: categoryId)
+          .where(AppConstants.isDeletedField, isEqualTo: false)
+          .limit(1)
+          .get();
+
+      if (inUse.docs.isNotEmpty) {
+        throw const ValidationException(
+          'This category is used by existing transactions and cannot be deleted.',
+        );
+      }
 
       await _categoriesCollection(userId).doc(categoryId).update({
         AppConstants.isDeletedField: true,
@@ -131,6 +149,7 @@ class CategoriesRemoteDataSourceImpl implements CategoriesRemoteDataSource {
       LoggerService.info('Category deleted: $categoryId');
     } catch (e, stackTrace) {
       LoggerService.error('Delete category error', error: e, stackTrace: stackTrace);
+      if (e is AppException) rethrow;
       throw ServerException(ErrorMessages.from(e, action: 'delete category'));
     }
   }
