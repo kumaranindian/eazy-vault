@@ -84,10 +84,11 @@ const List<ManualSection> manualSections = [
       ),
       ManualEntry(
         heading: 'Editing an account',
-        body: 'You can rename an account, change its details, or adjust '
-            'its opening balance later — EazyVault applies the change as '
-            'a difference to the current balance rather than overwriting '
-            'it, so existing transactions stay correct.',
+        body: 'You can rename an account, change its type, color, icon, '
+            "description or active status at any time. Its opening "
+            "balance can't be changed after the account is created — "
+            "that field is locked on the edit form — since the current "
+            'balance already reflects it.',
       ),
       ManualEntry(
         heading: 'Opening balance vs. current balance',
