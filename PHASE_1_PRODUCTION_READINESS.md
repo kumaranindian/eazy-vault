@@ -18,6 +18,8 @@
 | CSV transaction import | Yes | `csv_import_service_test.dart` (11 cases: dates, amounts, debit/credit, duplicates, import outcome) | By convention | Invalid file / unreadable file / per-row invalid reasons / per-row import failures all surfaced, never a raw exception | Imports go through the existing per-user `createTransaction` path; no direct Firestore writes | Yes, with the documented duplicate-check window limitation |
 | Receipt/photo attachments | Yes | `account_balance_service_test.dart` → `updateAttachments` group (zero balance effect on every type, including non-editable ones) | By convention | Oversized/wrong-type file rejected client-side (mirrors `storage.rules`); upload failure → error snackbar with retry | Uses the existing owner-scoped, size/type-validated Storage path; `storage.rules` unchanged | Yes |
 | Global UX retrofit | Yes | Full regression suite (108 tests) green after the change | N/A | — | — | Yes |
+| Import "Coming Soon" + About Us | Yes | Manual code review; `csv_import` backend untouched/unreachable, kept for later | By convention | N/A (static pages) | No new surface — static content, `mailto:` link fails gracefully | Yes |
+| Getting Started onboarding + User Manual | Yes | `onboarding_notifier_test.dart` (fresh-install default, `markSeen` persistence across a simulated restart), `manual_content_test.dart` (every section/entry has real content) | By convention | Preference save failure is swallowed by the existing `SharedPreferences`-backed pattern (matches `notificationsEnabled`); dialog/wizard never blocks reaching the dashboard | Local-only preference (`SharedPreferences`, no Firestore field); no new Firestore access | Yes, with the documented per-device (not per-account) limitation |
 
 ## Known limitations
 
@@ -31,6 +33,18 @@
 - **Net worth "fiscal year"**: treated as a trailing 12 calendar months; no fiscal-year
   configuration exists elsewhere in the app to anchor a different year-start.
 - **Profile email**: read-only in this phase.
+- **CSV import UI removed**: the Dashboard quick action and Transactions page import button were
+  removed at the user's request (they're being held back for a future release). The backend
+  (`lib/features/csv_import/`) and its tests are untouched and unreachable from any route except
+  `/transactions/import` directly, which still resolves to `ImportComingSoonPage` rather than a
+  404 or the real importer.
+- **Getting Started preference is per-device**: stored in `SharedPreferences` like `rememberMe`/
+  `notificationsEnabled` already are, not in the user's Firestore document — a new browser or
+  device shows the Welcome prompt again. Documented deliberately rather than silently added as a
+  new Firestore field (see `GETTING_STARTED_IMPLEMENTATION.md`).
+- **CSV Import omitted from onboarding and the User Manual entirely**: it has no reachable UI
+  (removed per this change), so neither doc mentions it, not even as "coming soon" — kept accurate
+  to current behavior instead of teasing a feature users can't reach.
 
 ## Platform limitations
 
@@ -67,3 +81,9 @@ continue to work (the field is already nullable and was already in the model).
 - Removing the still-unused `image_picker` dependency in a separate, explicitly-scoped cleanup.
 - Pagination in the CSV duplicate-check query if real users start importing statements covering
   accounts with very large transaction histories in the overlapping date range.
+- Re-wiring the CSV import UI (Dashboard quick action + Transactions page button) once the feature
+  is ready to ship — the backend and tests are already there, only the two entry points were removed.
+- Widget tests driving the Getting Started wizard and User Manual UI end-to-end; current coverage
+  is at the preference/content-data layer, consistent with this repo's existing test style.
+- A handful of additional "Learn more" contextual links (only the Budgets one was added, per the
+  spec's "only where users may reasonably need clarification" guidance).

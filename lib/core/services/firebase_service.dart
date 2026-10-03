@@ -9,10 +9,10 @@ import 'logger_service.dart';
 class FirebaseService {
   const FirebaseService._();
 
-  static Future<void> initialize() async {
+  static Future<void> initialize({FirebaseOptions? options}) async {
     try {
       await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+        options: options ?? DefaultFirebaseOptions.currentPlatform,
       );
 
       LoggerService.info('Firebase initialized successfully');
