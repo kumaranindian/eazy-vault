@@ -424,4 +424,44 @@ void main() {
       );
     });
   });
+
+  group('updateAttachments', () {
+    test('has no effect on balances for an editable transaction', () async {
+      final created = await service.createTransaction(userId, tx(TransactionType.expense, 200));
+      final before = await balanceOf('account-1');
+
+      await service.updateAttachments(userId, created.id, ['https://example.com/receipt.pdf']);
+
+      expect(await balanceOf('account-1'), before);
+      final stored = await transactionDoc(created.id);
+      expect(stored['attachments'], ['https://example.com/receipt.pdf']);
+    });
+
+    test('works on a transfer even though transfers cannot be edited', () async {
+      final created = await service.createTransaction(userId, transfer(500));
+      final sourceBefore = await balanceOf('account-1');
+      final destBefore = await balanceOf('account-2');
+
+      await service.updateAttachments(userId, created.id, ['https://example.com/receipt.pdf']);
+
+      expect(await balanceOf('account-1'), sourceBefore);
+      expect(await balanceOf('account-2'), destBefore);
+    });
+
+    test('an empty list clears the field instead of storing []', () async {
+      final created = await service.createTransaction(userId, tx(TransactionType.expense, 200));
+      await service.updateAttachments(userId, created.id, ['https://example.com/a.pdf']);
+      await service.updateAttachments(userId, created.id, []);
+
+      final stored = await transactionDoc(created.id);
+      expect(stored['attachments'], isNull);
+    });
+
+    test('throws for a transaction that does not exist', () async {
+      await expectLater(
+        service.updateAttachments(userId, 'missing-id', ['https://example.com/a.pdf']),
+        throwsA(isA<NotFoundException>()),
+      );
+    });
+  });
 }

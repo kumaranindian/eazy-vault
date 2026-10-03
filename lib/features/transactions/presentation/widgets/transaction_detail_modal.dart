@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/breakpoints.dart';
-import '../../../../core/utils/attachment_utils.dart';
 import '../../../../core/widgets/branded_dialog_title.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -21,6 +20,7 @@ import '../../domain/extensions/transaction_extensions.dart';
 import '../../domain/models/loan_metadata.dart';
 import '../../domain/services/account_balance_service.dart';
 import '../providers/transactions_notifier.dart';
+import 'attachments_section.dart';
 import 'edit_transaction_modal.dart';
 import 'loan_repayment_form.dart';
 import '../../../../core/widgets/form_dialog.dart';
@@ -212,17 +212,8 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                           Icons.store_outlined,
                         ),
                       ],
-                      if (transaction.attachments != null && transaction.attachments!.isNotEmpty) ...[
-                        AppSpacing.gapMD,
-                        _buildDetailRow(
-                          context,
-                          'Attachment',
-                          'View Attachment',
-                          Icons.attach_file_outlined,
-                          isLink: true,
-                          url: transaction.attachments!.first,
-                        ),
-                      ],
+                      AppSpacing.gapMD,
+                      AttachmentsSection(transaction: transaction),
                       AppSpacing.gapXL,
 
                       // Actions: side by side when there's room, stacked
@@ -296,10 +287,8 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
     BuildContext context,
     String label,
     String value,
-    IconData icon, {
-    bool isLink = false,
-    String? url,
-  }) {
+    IconData icon,
+  ) {
     final theme = Theme.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,24 +310,12 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
                 ),
               ),
               const SizedBox(height: 2),
-              if (isLink && url != null)
-                InkWell(
-                  onTap: () => AttachmentUtils.openAttachment(context, url),
-                  child: Text(
-                    value,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                )
-              else
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
             ],
           ),
         ),

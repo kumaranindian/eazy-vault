@@ -185,6 +185,52 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   @override
+  Future<Failure?> addAttachment(
+    String userId,
+    String transactionId,
+    String attachmentUrl,
+  ) async {
+    try {
+      final stored = await _remoteDataSource.getTransaction(userId, transactionId);
+      final attachments = <String>[...stored.attachments ?? [], attachmentUrl];
+      await _balanceService.updateAttachments(userId, transactionId, attachments);
+      return null;
+    } on NotFoundException catch (e) {
+      LoggerService.error('Not found error', error: e);
+      return Failure.notFoundError(e.message);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return Failure.serverError(e.message);
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return Failure.unknownError(ErrorMessages.from(e));
+    }
+  }
+
+  @override
+  Future<Failure?> removeAttachment(
+    String userId,
+    String transactionId,
+    String attachmentUrl,
+  ) async {
+    try {
+      final stored = await _remoteDataSource.getTransaction(userId, transactionId);
+      final attachments = <String>[...stored.attachments ?? []]..remove(attachmentUrl);
+      await _balanceService.updateAttachments(userId, transactionId, attachments);
+      return null;
+    } on NotFoundException catch (e) {
+      LoggerService.error('Not found error', error: e);
+      return Failure.notFoundError(e.message);
+    } on ServerException catch (e) {
+      LoggerService.error('Server error', error: e);
+      return Failure.serverError(e.message);
+    } catch (e, stackTrace) {
+      LoggerService.error('Unknown error', error: e, stackTrace: stackTrace);
+      return Failure.unknownError(ErrorMessages.from(e));
+    }
+  }
+
+  @override
   Stream<List<TransactionModel>> watchTransactions(
     String userId, {
     TransactionType? type,

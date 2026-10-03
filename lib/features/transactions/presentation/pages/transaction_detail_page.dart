@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/utils/attachment_utils.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../../domain/extensions/transaction_extensions.dart';
@@ -22,6 +21,7 @@ import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/responsive_layout.dart';
 import '../../domain/services/account_balance_service.dart';
+import '../widgets/attachments_section.dart';
 
 class TransactionDetailPage extends ConsumerWidget {
   const TransactionDetailPage({
@@ -254,11 +254,8 @@ class TransactionDetailPage extends ConsumerWidget {
                           transaction.vendor!,
                         ),
                       ],
-                      if (transaction.attachments != null &&
-                          transaction.attachments!.isNotEmpty) ...[
-                        const Divider(height: 24),
-                        _buildAttachmentRow(context, transaction.attachments!.first),
-                      ],
+                      const Divider(height: 24),
+                      AttachmentsSection(transaction: transaction),
                     ],
                   ),
                 ),
@@ -303,38 +300,6 @@ class TransactionDetailPage extends ConsumerWidget {
           onRetry: () => ref.invalidate(transactionProvider(transactionId)),
         ),
       ),
-    );
-  }
-
-  Widget _buildAttachmentRow(BuildContext context, String url) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 2,
-          child: Text(
-            'Attachment',
-            style: context.textTheme.bodyMedium?.copyWith(
-              color: context.colorScheme.onSurface.withOpacity(0.6),
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 3,
-          child: InkWell(
-            onTap: () => AttachmentUtils.openAttachment(context, url),
-            child: Text(
-              'View Attachment',
-              textAlign: TextAlign.end,
-              style: context.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: context.colorScheme.primary,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 

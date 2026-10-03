@@ -167,6 +167,36 @@ class AccountBalanceService {
     LoggerService.info('Transaction deleted: $transactionId');
   }
 
+  /// Replaces a transaction's `attachments` list. Unlike [updateTransaction],
+  /// this has no balance effect and isn't restricted by [isEditableType] —
+  /// attaching a receipt doesn't move money, so it's allowed on any
+  /// transaction type (including transfers/loans, which can't otherwise be
+  /// edited). Still the only place that writes this field, keeping "every
+  /// transaction write goes through AccountBalanceService" true.
+  Future<void> updateAttachments(
+    String userId,
+    String transactionId,
+    List<String> attachments,
+  ) async {
+    final docRef = _transactions(userId).doc(transactionId);
+
+    await _run('update attachments', () async {
+      final doc = await docRef.get();
+      if (!doc.exists) {
+        throw const NotFoundException('Transaction not found');
+      }
+      final stored = TransactionModel.fromFirestore(doc);
+      if (stored.isDeleted) {
+        throw const NotFoundException('Transaction has been deleted');
+      }
+
+      await docRef.update({
+        'attachments': attachments.isEmpty ? null : attachments,
+        AppConstants.updatedAtField: Timestamp.now(),
+      });
+    });
+  }
+
   /// Rebuilds every account's stored `currentBalance` from its
   /// `openingBalance` plus the effect of all non-deleted transactions, using
   /// the same rules as live writes. Repairs balances corrupted by earlier

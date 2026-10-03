@@ -86,4 +86,11 @@ abstract class TransactionsRepository {
     String accountId, {
     DateTime? endDate,
   });
+
+  /// Appends [attachmentUrl] to [transactionId]'s attachments. Allowed on
+  /// any transaction type — attachments don't affect balances.
+  Future<Failure?> addAttachment(String userId, String transactionId, String attachmentUrl);
+
+  /// Removes [attachmentUrl] from [transactionId]'s attachments.
+  Future<Failure?> removeAttachment(String userId, String transactionId, String attachmentUrl);
 }
