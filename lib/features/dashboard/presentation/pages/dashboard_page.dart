@@ -239,6 +239,12 @@ class DashboardPage extends ConsumerWidget {
                                 color: Colors.brown,
                                 onTap: () => context.push(RouteConstants.reports),
                               ),
+                              QuickActionButton(
+                                label: 'Import',
+                                icon: Icons.file_upload_outlined,
+                                color: Colors.cyan,
+                                onTap: () => context.push(RouteConstants.importTransactions),
+                              ),
                             ],
                           ),
                           AppSpacing.gapXL,

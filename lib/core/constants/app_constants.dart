@@ -47,6 +47,7 @@ class RouteConstants {
   static const String addExpense = '/transactions/add-expense';
   static const String transactionDetail = '/transactions/:id';
   static const String editTransaction = '/transactions/:id/edit';
+  static const String importTransactions = '/transactions/import';
 
   static const String reports = '/reports';
 

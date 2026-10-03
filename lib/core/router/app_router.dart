@@ -13,6 +13,7 @@ import '../../features/authentication/presentation/pages/profile_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../features/categories/presentation/pages/add_edit_category_page.dart';
+import '../../features/csv_import/presentation/pages/csv_import_page.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
@@ -179,6 +180,10 @@ GoRouter appRouter(AppRouterRef ref) {
           final id = state.pathParameters['id']!;
           return AddEditTransactionPage(transactionId: id);
         },
+      ),
+      GoRoute(
+        path: RouteConstants.importTransactions,
+        builder: (context, state) => const CsvImportPage(),
       ),
       GoRoute(
         path: RouteConstants.reports,
