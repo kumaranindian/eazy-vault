@@ -7,6 +7,7 @@ import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/widgets/responsive_layout.dart';
+import '../../domain/release_notes.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -71,6 +72,16 @@ class AboutPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
+            AppSpacing.gapXS,
+            Center(
+              child: Text(
+                'Version ${AppConfig.appVersion}',
+                style: context.textTheme.bodySmall?.copyWith(
+                  color: context.colorScheme.onSurface.withOpacity(0.5),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
             AppSpacing.gapXL,
             const Divider(),
             AppSpacing.gapMD,
@@ -82,6 +93,57 @@ class AboutPage extends StatelessWidget {
               'financial activities in one place.',
               style: context.textTheme.bodyMedium,
             ),
+            AppSpacing.gapXL,
+            const Divider(),
+            AppSpacing.gapMD,
+            _sectionTitle(context, "What's New"),
+            AppSpacing.gapSM,
+            for (final note in releaseNotes) ...[
+              Row(
+                children: [
+                  Text(
+                    'v${note.version}',
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  AppSpacing.gapSM,
+                  Text(
+                    note.date,
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: context.colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+              AppSpacing.gapSM,
+              for (final highlight in note.highlights)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: AppSpacing.sm,
+                    bottom: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '•',
+                        style: context.textTheme.bodyMedium?.copyWith(
+                          color: context.colorScheme.primary,
+                        ),
+                      ),
+                      AppSpacing.gapSM,
+                      Expanded(
+                        child: Text(
+                          highlight,
+                          style: context.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              AppSpacing.gapMD,
+            ],
             AppSpacing.gapXL,
             const Divider(),
             AppSpacing.gapMD,
