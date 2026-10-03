@@ -10,6 +10,8 @@ import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/widgets/responsive_layout.dart';
+import '../../../notifications/domain/services/web_notifier.dart';
+import '../../../notifications/presentation/providers/notification_settings_provider.dart';
 import '../../data/models/user_model.dart';
 import '../providers/auth_notifier.dart';
 
@@ -24,6 +26,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   bool _isLoading = false;
+  bool _isTogglingNotifications = false;
   String? _prefilledForUserId;
 
   @override
@@ -58,9 +61,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  Future<void> _handleToggleNotifications(bool value) async {
+    setState(() => _isTogglingNotifications = true);
+    await ref.read(notificationSettingsNotifierProvider.notifier).setEnabled(value);
+    if (!mounted) return;
+    setState(() => _isTogglingNotifications = false);
+
+    if (!value) {
+      context.showInfoSnackBar('Notification settings updated');
+      return;
+    }
+
+    if (WebNotifier.permission == 'granted') {
+      context.showSuccessSnackBar('Notification settings updated');
+    } else {
+      context.showErrorSnackBar(
+        'Notifications are disabled. Enable notification permission in your browser settings.',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
+    final notificationsEnabledAsync = ref.watch(notificationSettingsNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile & Settings')),
@@ -122,6 +146,33 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     leading: const Icon(Icons.calendar_today_outlined),
                     title: const Text('Member Since'),
                     trailing: Text(user.createdAt.toFormattedDate()),
+                  ),
+                  AppSpacing.gapXL,
+                  const Divider(),
+                  AppSpacing.gapMD,
+                  Text(
+                    'Notifications',
+                    style: context.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Budget & bill alerts'),
+                    subtitle: Text(
+                      !WebNotifier.isSupported
+                          ? 'Browser notifications aren\'t supported on this device. '
+                              'The in-app bell will still show alerts.'
+                          : WebNotifier.permission == 'denied'
+                              ? 'Notifications are disabled. Enable notification '
+                                  'permission in your browser settings.'
+                              : 'Get notified when a budget is near its limit or a '
+                                  'loan payment is coming due.',
+                    ),
+                    value: notificationsEnabledAsync.valueOrNull ?? false,
+                    onChanged: _isTogglingNotifications
+                        ? null
+                        : (value) => _handleToggleNotifications(value),
                   ),
                   AppSpacing.gapXL,
                   ElevatedButton(

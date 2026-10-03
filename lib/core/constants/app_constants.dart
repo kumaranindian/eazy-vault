@@ -19,6 +19,8 @@ class AppConstants {
   static const String sharedPrefsThemeMode = 'theme_mode';
   static const String sharedPrefsRememberMe = 'remember_me';
   static const String sharedPrefsLastEmail = 'last_email';
+  static const String sharedPrefsNotificationsEnabled = 'notifications_enabled';
+  static const String sharedPrefsNotifiedAlertKeys = 'notified_alert_keys';
 }
 
 class RouteConstants {

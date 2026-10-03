@@ -44,6 +44,8 @@ import '../../../transactions/presentation/widgets/loan_transaction_form.dart';
 import '../../../../core/widgets/form_dialog.dart';
 import '../../../reports/domain/enums/report_type.dart';
 import '../../../reports/presentation/widgets/export_config_sheet.dart';
+import '../../../notifications/presentation/providers/active_alerts_provider.dart';
+import '../../../notifications/presentation/widgets/notification_bell.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -70,6 +72,10 @@ class DashboardPage extends ConsumerWidget {
         },
       );
     });
+
+    // Fires a browser notification for any newly-crossed budget/bill alert.
+    // The in-app bell (below) always reflects current alerts regardless.
+    ref.watch(notificationDispatchProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -130,6 +136,7 @@ class DashboardPage extends ConsumerWidget {
                 ],
               ),
             ),
+          const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: 'Profile',
