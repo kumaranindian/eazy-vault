@@ -184,8 +184,7 @@ class _AddEditBudgetModalState extends ConsumerState<AddEditBudgetModal> {
                 child: TextButton(
                   onPressed: () {
                     Navigator.of(context).pop();
-                    context
-                        .push('${RouteConstants.userManual}?section=budgets');
+                    context.push('${RouteConstants.userManual}?section=budgets');
                   },
                   child: const Text('Learn how budget alerts work →'),
                 ),
