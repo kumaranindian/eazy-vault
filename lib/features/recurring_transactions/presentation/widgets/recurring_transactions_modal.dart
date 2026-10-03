@@ -5,6 +5,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/breakpoints.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../categories/data/models/category_model.dart';
@@ -184,30 +185,16 @@ class RecurringTransactionsModal extends ConsumerWidget {
   }
 
   Future<void> _deleteRule(BuildContext context, WidgetRef ref, RecurringTransactionModel rule) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Recurring Transaction'),
-        content: const Text(
-          'Are you sure you want to delete this recurring transaction? Transactions already generated from it will not be removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: context.colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Delete Recurring Transaction',
+      message: 'Are you sure you want to delete this recurring transaction? '
+          'Transactions already generated from it will not be removed.',
+      confirmText: 'Delete',
+      isDestructive: true,
     );
 
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       final failure =
           await ref.read(recurringTransactionsNotifierProvider.notifier).deleteRule(rule.id);
       if (failure == null && context.mounted) {
