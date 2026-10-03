@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/models/failure.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../transactions/presentation/providers/financial_refresh.dart';
 import '../../data/models/recurring_transaction_model.dart';
 import 'recurring_transactions_providers.dart';
 
@@ -47,15 +48,42 @@ class RecurringTransactionsNotifier extends _$RecurringTransactionsNotifier {
     }
   }
 
-  Future<Failure?> createRule(RecurringTransactionModel rule) {
-    return _mutate((userId) async {
-      final result =
-          await ref.read(recurringTransactionsRepositoryProvider).createRecurringTransaction(
-                userId,
-                rule,
-              );
-      return result.failure;
-    });
+  /// Creates [rule], then immediately runs [RecurringTransactionService.catchUp]
+  /// so any already-due occurrences (e.g. a past `startDate`) are generated
+  /// right away instead of waiting for the next app session's catch-up pass.
+  /// Returns how many occurrences were generated so the caller can say so.
+  Future<({Failure? failure, int generatedCount})> createRule(
+    RecurringTransactionModel rule,
+  ) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      return (
+        failure: const Failure.authenticationError('User not authenticated'),
+        generatedCount: 0,
+      );
+    }
+
+    final link = ref.keepAlive();
+    try {
+      final result = await ref
+          .read(recurringTransactionsRepositoryProvider)
+          .createRecurringTransaction(user.uid, rule);
+      if (result.failure != null) {
+        return (failure: result.failure, generatedCount: 0);
+      }
+
+      final generatedCount = await ref
+          .read(recurringTransactionServiceProvider)
+          .catchUp(user.uid, result.rule!);
+      if (generatedCount > 0) {
+        refreshFinancialData(ref.invalidate);
+      }
+
+      await _loadRules();
+      return (failure: null, generatedCount: generatedCount);
+    } finally {
+      link.close();
+    }
   }
 
   Future<Failure?> updateRule(RecurringTransactionModel rule) {

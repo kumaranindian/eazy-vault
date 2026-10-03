@@ -131,51 +131,66 @@ class _AddEditRecurringModalState extends ConsumerState<AddEditRecurringModal> {
     final notifier = ref.read(recurringTransactionsNotifierProvider.notifier);
     final existingRule = widget.rule;
 
-    final failure = existingRule != null
-        ? await notifier.updateRule(
-            existingRule.copyWith(
-              type: _selectedType,
-              amount: amount,
-              accountId: _selectedAccountId!,
-              categoryId: _selectedCategoryId!,
-              description: description.isEmpty ? null : description,
-              vendor: vendor.isEmpty ? null : vendor,
-              frequency: _frequency,
-              startDate: _startDate,
-              endDate: _endDate,
-              updatedAt: now,
-            ),
-          )
-        : await notifier.createRule(
-            RecurringTransactionModel(
-              id: '',
-              type: _selectedType,
-              amount: amount,
-              accountId: _selectedAccountId!,
-              categoryId: _selectedCategoryId!,
-              description: description.isEmpty ? null : description,
-              vendor: vendor.isEmpty ? null : vendor,
-              frequency: _frequency,
-              startDate: _startDate,
-              endDate: _endDate,
-              isActive: true,
-              createdAt: now,
-              updatedAt: now,
-              createdBy: user.uid,
-            ),
-          );
+    if (existingRule != null) {
+      final failure = await notifier.updateRule(
+        existingRule.copyWith(
+          type: _selectedType,
+          amount: amount,
+          accountId: _selectedAccountId!,
+          categoryId: _selectedCategoryId!,
+          description: description.isEmpty ? null : description,
+          vendor: vendor.isEmpty ? null : vendor,
+          frequency: _frequency,
+          startDate: _startDate,
+          endDate: _endDate,
+          updatedAt: now,
+        ),
+      );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (failure == null) {
+        context.showSuccessSnackBar('Recurring transaction updated successfully');
+        Navigator.of(context).pop();
+      } else {
+        context.showErrorSnackBar(failure.message);
+      }
+      return;
+    }
+
+    final result = await notifier.createRule(
+      RecurringTransactionModel(
+        id: '',
+        type: _selectedType,
+        amount: amount,
+        accountId: _selectedAccountId!,
+        categoryId: _selectedCategoryId!,
+        description: description.isEmpty ? null : description,
+        vendor: vendor.isEmpty ? null : vendor,
+        frequency: _frequency,
+        startDate: _startDate,
+        endDate: _endDate,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user.uid,
+      ),
+    );
 
     if (!mounted) return;
-
     setState(() => _isLoading = false);
 
-    if (failure == null) {
+    if (result.failure == null) {
       context.showSuccessSnackBar(
-        _isEditing ? 'Recurring transaction updated successfully' : 'Recurring transaction created successfully',
+        result.generatedCount > 0
+            ? 'Recurring rule created. ${result.generatedCount} missed '
+                'transaction${result.generatedCount > 1 ? 's' : ''} added.'
+            : 'Recurring transaction created successfully',
       );
       Navigator.of(context).pop();
     } else {
-      context.showErrorSnackBar(failure.message);
+      context.showErrorSnackBar(result.failure!.message);
     }
   }
 
