@@ -24,9 +24,10 @@ class OnboardingStep {
 /// Content here is deliberately scoped to what EazyVault actually does
 /// today: budgets are a category + monthly limit (no custom period),
 /// "bills" are loan due dates surfaced on the dashboard rather than a
-/// separate bill-tracking feature, recurring rules support Daily/Weekly/
-/// Monthly only, and CSV import is called out as coming soon rather than
-/// described as available, since its UI entry points are currently hidden.
+/// separate bill-tracking feature, and recurring rules support Daily/Weekly/
+/// Monthly only. Only features with a working UI entry point are covered —
+/// CSV import has real code behind it but no reachable screen yet, so it's
+/// left out entirely rather than mentioned as "coming soon."
 const List<OnboardingStep> onboardingSteps = [
   OnboardingStep(
     title: '1. Add Your Accounts',
@@ -95,8 +96,6 @@ const List<OnboardingStep> onboardingSteps = [
     body: 'A few more things worth knowing:\n\n'
         '• Receipts & Photos — attach a receipt to any transaction so the '
         'record stays with it.\n\n'
-        '• CSV Bank Import — coming soon: import transactions from a bank '
-        'statement instead of entering them by hand.\n\n'
         '• Notifications — turn on browser alerts for bills and budgets '
         'in Settings; the in-app bell always shows them too.\n\n'
         '• Settings — manage your profile and preferences any time.\n\n'
