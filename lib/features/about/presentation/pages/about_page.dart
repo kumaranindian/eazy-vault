@@ -77,7 +77,7 @@ class AboutPage extends StatelessWidget {
               child: Text(
                 'Version ${AppConfig.appVersion}',
                 style: context.textTheme.bodySmall?.copyWith(
-                  color: context.colorScheme.onSurface.withOpacity(0.5),
+                  color: context.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -111,7 +111,8 @@ class AboutPage extends StatelessWidget {
                   Text(
                     note.date,
                     style: context.textTheme.bodySmall?.copyWith(
-                      color: context.colorScheme.onSurface.withOpacity(0.6),
+                      color:
+                          context.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
