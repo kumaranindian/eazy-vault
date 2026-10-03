@@ -34,6 +34,7 @@ import '../widgets/loans_summary_card.dart';
 import '../widgets/upcoming_bills_widget.dart';
 import '../widgets/spending_trends_chart.dart';
 import '../widgets/category_breakdown_chart.dart';
+import '../widgets/net_worth_chart.dart';
 import '../widgets/budgets_summary_card.dart';
 import '../../../budgets/presentation/widgets/budgets_modal.dart';
 import '../../../recurring_transactions/presentation/providers/recurring_catch_up_provider.dart';
@@ -311,6 +312,9 @@ class DashboardPage extends ConsumerWidget {
                               UpcomingBillsWidget(),
                             ],
                           ),
+                          AppSpacing.gapXL,
+                          // Net Worth Chart
+                          const NetWorthChart(),
                           AppSpacing.gapXL,
                           // Spending Trends Chart
                           const SpendingTrendsChart(),
