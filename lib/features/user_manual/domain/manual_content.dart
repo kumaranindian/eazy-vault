@@ -29,10 +29,11 @@ class ManualSection {
 /// earlier spec described it — in particular: budgets are a category plus
 /// a fixed monthly limit (there's no custom budget period or editable
 /// threshold), "Bills" is the dashboard's view of loan due dates rather
-/// than a separate bill-tracking feature, recurring rules only support
-/// Daily/Weekly/Monthly, and CSV import is documented as coming soon
-/// because its UI entry points are currently hidden while the feature is
-/// held back for a future release.
+/// than a separate bill-tracking feature, and recurring rules only support
+/// Daily/Weekly/Monthly. Only features with a working UI entry point are
+/// documented here — CSV import, for example, has real code behind it but
+/// no reachable screen yet, so it's deliberately left out rather than
+/// described as available or even "coming soon."
 const List<ManualSection> manualSections = [
   ManualSection(
     id: 'getting-started',
@@ -369,26 +370,6 @@ const List<ManualSection> manualSections = [
     ],
   ),
   ManualSection(
-    id: 'csv-import',
-    title: 'CSV Import',
-    icon: Icons.file_upload_outlined,
-    entries: [
-      ManualEntry(
-        heading: 'Coming soon',
-        body: 'Importing transactions from a bank CSV file is being '
-            "held back for a future update, so this option isn't "
-            'available in the app right now.',
-      ),
-      ManualEntry(
-        heading: 'What it will do',
-        body: 'When available, it will let you select a CSV file, map '
-            "its columns to EazyVault's fields, preview and review the "
-            'rows it detects (flagging likely duplicates so you can '
-            "exclude them), and then import only what you've confirmed.",
-      ),
-    ],
-  ),
-  ManualSection(
     id: 'attachments',
     title: 'Attachments',
     icon: Icons.attach_file,
@@ -530,11 +511,6 @@ const List<ManualSection> manualSections = [
             'the web version. Check the toggle in Profile & Settings, '
             "and your browser's notification permission for the site — "
             'the in-app bell shows the same alerts either way.',
-      ),
-      ManualEntry(
-        heading: 'How do I import bank transactions?',
-        body: 'CSV import is coming in a future update — see CSV '
-            'Import.',
       ),
       ManualEntry(
         heading: 'Can I attach a receipt to a transaction?',
