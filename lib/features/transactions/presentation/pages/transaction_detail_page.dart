@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/attachment_utils.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/enums/transaction_type.dart';
 import '../../domain/extensions/transaction_extensions.dart';
@@ -256,11 +257,7 @@ class TransactionDetailPage extends ConsumerWidget {
                       if (transaction.attachments != null &&
                           transaction.attachments!.isNotEmpty) ...[
                         const Divider(height: 24),
-                        _buildInfoRow(
-                          context,
-                          'Attachment',
-                          transaction.attachments!.first,
-                        ),
+                        _buildAttachmentRow(context, transaction.attachments!.first),
                       ],
                     ],
                   ),
@@ -306,6 +303,38 @@ class TransactionDetailPage extends ConsumerWidget {
           onRetry: () => ref.invalidate(transactionProvider(transactionId)),
         ),
       ),
+    );
+  }
+
+  Widget _buildAttachmentRow(BuildContext context, String url) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Attachment',
+            style: context.textTheme.bodyMedium?.copyWith(
+              color: context.colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: InkWell(
+            onTap: () => AttachmentUtils.openAttachment(context, url),
+            child: Text(
+              'View Attachment',
+              textAlign: TextAlign.end,
+              style: context.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.colorScheme.primary,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

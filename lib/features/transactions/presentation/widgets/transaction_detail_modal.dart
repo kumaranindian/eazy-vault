@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/breakpoints.dart';
+import '../../../../core/utils/attachment_utils.dart';
 import '../../../../core/widgets/branded_dialog_title.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -322,9 +323,7 @@ class _TransactionDetailModalState extends ConsumerState<TransactionDetailModal>
               const SizedBox(height: 2),
               if (isLink && url != null)
                 InkWell(
-                  onTap: () {
-                    // Open URL
-                  },
+                  onTap: () => AttachmentUtils.openAttachment(context, url),
                   child: Text(
                     value,
                     style: theme.textTheme.bodyMedium?.copyWith(
